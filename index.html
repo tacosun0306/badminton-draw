@@ -223,123 +223,6 @@
             font-size: 14px;
             margin-top: 10px;
         }
-
-        .reset-button-container {
-            margin-top: 30px;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .btn-reset-large {
-            padding: 18px 60px;
-            font-size: 20px;
-            font-weight: bold;
-            background: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
-        }
-
-        .btn-reset-large:hover {
-            background: #c82333;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
-        }
-
-        .btn-reset-large:active {
-            transform: translateY(0);
-        }
-
-        /* 響應式設計 */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            .header h1 {
-                font-size: 24px;
-            }
-
-            .header p {
-                font-size: 12px;
-            }
-
-            .card {
-                padding: 15px;
-                margin-bottom: 10px;
-            }
-
-            .input-group {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .input-group input[type="text"],
-            .input-group .btn {
-                width: 100%;
-            }
-
-            /* 當前比賽和等候區改為單欄 */
-            #currentMatch > div {
-                grid-template-columns: 1fr !important;
-            }
-
-            /* 狀態和球員列表改為單欄 */
-            .container > div:last-child {
-                grid-template-columns: 1fr !important;
-            }
-
-            .courts-container {
-                grid-template-columns: 1fr;
-            }
-
-            .players-list {
-                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            }
-
-            .player-badge {
-                font-size: 12px;
-                padding: 6px;
-            }
-
-            .btn {
-                padding: 10px 20px;
-                font-size: 14px;
-            }
-
-            .btn-reset-large {
-                padding: 15px 40px;
-                font-size: 18px;
-                width: 100%;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 20px;
-            }
-
-            .card h3 {
-                font-size: 16px;
-            }
-
-            .court-title {
-                font-size: 18px;
-            }
-
-            .player-item {
-                font-size: 14px;
-                padding: 8px;
-            }
-
-            .hint {
-                font-size: 11px;
-                padding: 8px 12px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -349,17 +232,23 @@
             <p>依到場順序登記，自動分配場次</p>
         </div>
 
+        <!-- 右上角重置按鈕 -->
+        <button class="btn btn-danger" onclick="resetGame()" style="position: fixed; top: 20px; right: 20px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+            比賽重置
+        </button>
+
         <!-- 球員登記輸入欄 -->
         <div class="card" style="position: sticky; top: 10px; z-index: 100; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            <div style="text-align: center; margin-bottom: 12px; color: #667eea; font-weight: 600; font-size: 16px;">
+                <span id="currentPlayerCount">👥 目前報名人數 0人</span>
+            </div>
             <div class="input-group" style="margin-bottom: 0;">
                 <input 
                     type="text" 
                     id="playerNameInput" 
                     placeholder="輸入你的姓名" 
                     onkeypress="if(event.key === 'Enter') addPlayer()">
-                <button class="btn btn-primary" onclick="addPlayer()">
-                    登記入場 <span id="playerCountBadge" style="background: rgba(255,255,255,0.3); padding: 2px 8px; border-radius: 12px; margin-left: 8px; font-size: 14px;">0人</span>
-                </button>
+                <button class="btn btn-primary" onclick="addPlayer()">登記入場</button>
             </div>
         </div>
 
@@ -409,13 +298,6 @@
                 <h3>👥 已登記球員</h3>
                 <div id="playersList"></div>
             </div>
-        </div>
-
-        <!-- 重置按鈕 -->
-        <div class="reset-button-container">
-            <button class="btn-reset-large" onclick="resetGame()">
-                🔄 比賽重置
-            </button>
         </div>
     </div>
 
@@ -573,10 +455,10 @@
         function updateDisplay() {
             document.getElementById('totalPlayers').textContent = players.length;
             
-            // 更新按鈕上的人數徽章
-            const badge = document.getElementById('playerCountBadge');
-            if (badge) {
-                badge.textContent = `${players.length}人`;
+            // 更新輸入框上方的報名人數
+            const currentPlayerCount = document.getElementById('currentPlayerCount');
+            if (currentPlayerCount) {
+                currentPlayerCount.textContent = `👥 目前報名人數 ${players.length}人`;
             }
             
             const playersList = document.getElementById('playersList');
