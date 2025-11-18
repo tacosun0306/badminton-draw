@@ -286,7 +286,7 @@
                     </div>
                 </div>
                 <div class="hint" style="margin-top: 10px; font-size: 12px;">
-                    💡 滿4人自動開A場<br>滿8人同時開B場
+                    💡 滿8人開兩場<br>場上維持8人，比賽結束自動輪替
                 </div>
             </div>
 
@@ -337,6 +337,8 @@
         let currentCourtB = []; // 當前球場B的球員
         let courtAFinished = false;
         let courtBFinished = false;
+        let courtAStarted = false; // A場是否已啟用過
+        let courtBStarted = false; // B場是否已啟用過
         let finishedMatches = 0;
 
         // 新增球員
@@ -374,8 +376,6 @@
 
         // 自動開始比賽（滿4人或8人）
         function autoStartIfReady() {
-            const waitingCount = players.length - nextPlayerIndex;
-            
             // 優先檢查是否有已結束的球場可以重新開始
             if (courtAFinished) {
                 autoReplaceCourtA();
@@ -386,17 +386,23 @@
                 return;
             }
             
-            // 如果當前沒有比賽進行中
+            // 計算目前場上人數和等候區人數
+            const onCourt = [...currentCourtA, ...currentCourtB].filter(p => p);
+            const waiting = players.filter(p => !currentCourtA.includes(p) && !currentCourtB.includes(p));
+            
+            console.log('自動檢查 - 總人數:', players.length, '場上:', onCourt.length, '等候:', waiting.length);
+            
+            // 如果當前沒有比賽進行中，且至少有4人
             if (currentCourtA.length === 0 && currentCourtB.length === 0) {
-                if (waitingCount >= 4) {
+                if (players.length >= 4) {
+                    console.log('✅ 啟動第一場比賽');
                     nextMatch();
                 }
             }
-            // 如果A場有比賽但B場空著，且等候區滿4人
+            // 如果A場有比賽但B場空著，且等候區有4人以上
             else if (currentCourtA.length > 0 && currentCourtB.length === 0 && !courtAFinished) {
-                const onCourtA = currentCourtA.filter(p => p).length;
-                const waiting = players.filter(p => !currentCourtA.includes(p));
-                if (waiting.length >= 4 && waitingCount >= 4) {
+                if (waiting.length >= 4) {
+                    console.log('✅ 啟動B場');
                     startCourtB();
                 }
             }
@@ -404,14 +410,41 @@
         
         // 開始B場
         function startCourtB() {
-            if (nextPlayerIndex < players.length) {
-                const remaining = players.length - nextPlayerIndex;
-                if (remaining >= 4) {
-                    currentCourtB = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
-                    nextPlayerIndex += 4;
-                    currentCourtB.forEach(p => playerMatchCount[p]++);
-                    displayMatch();
+            // 計算等候區球員（不在A場和B場的球員）
+            const waiting = players.filter(p => !currentCourtA.includes(p) && !currentCourtB.includes(p));
+            
+            console.log('開始B場 - 等候區球員:', waiting);
+            
+            if (waiting.length >= 4) {
+                // 優先選擇按順序還沒上過場的球員
+                if (nextPlayerIndex < players.length) {
+                    const remaining = players.length - nextPlayerIndex;
+                    if (remaining >= 4) {
+                        currentCourtB = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
+                        nextPlayerIndex += 4;
+                    } else {
+                        // 不足4人則從等候區選擇
+                        currentCourtB = waiting.slice(0, 4);
+                    }
+                } else {
+                    // 所有人都上過場了，從等候區按上場次數排序選擇
+                    waiting.sort((a, b) => {
+                        const countA = playerMatchCount[a] || 0;
+                        const countB = playerMatchCount[b] || 0;
+                        if (countA !== countB) return countA - countB;
+                        return players.indexOf(a) - players.indexOf(b);
+                    });
+                    currentCourtB = waiting.slice(0, 4);
                 }
+                
+                currentCourtB.forEach(p => playerMatchCount[p]++);
+                courtBStarted = true;
+                courtBFinished = false;
+                
+                console.log('✅ B場球員:', currentCourtB);
+                
+                displayMatch();
+                saveToFirebase();
             }
         }
 
@@ -477,10 +510,13 @@
                 // 還有8人以上，開兩場
                 currentCourtA = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
                 currentCourtB = players.slice(nextPlayerIndex + 4, nextPlayerIndex + 8);
+                courtAStarted = true;
+                courtBStarted = true;
                 nextPlayerIndex += 8;
             } else if (remaining >= 4) {
                 // 還有4-7人，開一場
                 currentCourtA = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
+                courtAStarted = true;
                 nextPlayerIndex += 4;
             } else {
                 // 不足4人，混合亂數配對
@@ -507,8 +543,11 @@
             if (shuffled.length >= 8) {
                 currentCourtA = shuffled.slice(0, 4);
                 currentCourtB = shuffled.slice(4, 8);
+                courtAStarted = true;
+                courtBStarted = true;
             } else if (shuffled.length >= 4) {
                 currentCourtA = shuffled.slice(0, 4);
+                courtAStarted = true;
             } else {
                 alert('球員人數不足4人，無法開始比賽！');
                 return;
@@ -529,35 +568,43 @@
             // 顯示球場
             let courtsHTML = '';
             
-            if (currentCourtA.length > 0) {
+            // A場：只要曾經啟用過就一直顯示
+            if (courtAStarted) {
                 courtsHTML += `
                     <div class="court ${courtAFinished ? 'finished' : ''}">
                         <div class="court-title">🏸 球場 A</div>
                         <div class="court-players">
-                            ${currentCourtA.map(p => 
-                                `<div class="player-item">${p} (第${playerMatchCount[p]}場)</div>`
-                            ).join('')}
+                            ${currentCourtA.length > 0 ? 
+                                currentCourtA.map(p => 
+                                    `<div class="player-item">${p} (第${playerMatchCount[p]}場)</div>`
+                                ).join('') : 
+                                '<div style="text-align: center; color: #999; padding: 20px;">等待球員中...</div>'
+                            }
                         </div>
                         ${!courtAFinished ? 
                             '<button class="btn btn-success" onclick="finishCourt(\'A\')" style="width: 100%;">比賽結束（自動替補）</button>' : 
-                            '<div style="text-align: center; color: #dc3545; font-weight: bold;">✅ 已結束（等待更多球員）</div>'
+                            '<div style="text-align: center; color: #ff9800; font-weight: bold; padding: 10px; background: #fff3e0; border-radius: 5px;">⏳ 等待中（需要4名球員）</div>'
                         }
                     </div>
                 `;
             }
             
-            if (currentCourtB.length > 0) {
+            // B場：只要曾經啟用過就一直顯示
+            if (courtBStarted) {
                 courtsHTML += `
                     <div class="court ${courtBFinished ? 'finished' : ''}">
                         <div class="court-title">🏸 球場 B</div>
                         <div class="court-players">
-                            ${currentCourtB.map(p => 
-                                `<div class="player-item">${p} (第${playerMatchCount[p]}場)</div>`
-                            ).join('')}
+                            ${currentCourtB.length > 0 ? 
+                                currentCourtB.map(p => 
+                                    `<div class="player-item">${p} (第${playerMatchCount[p]}場)</div>`
+                                ).join('') : 
+                                '<div style="text-align: center; color: #999; padding: 20px;">等待球員中...</div>'
+                            }
                         </div>
                         ${!courtBFinished ? 
                             '<button class="btn btn-success" onclick="finishCourt(\'B\')" style="width: 100%;">比賽結束（自動替補）</button>' : 
-                            '<div style="text-align: center; color: #dc3545; font-weight: bold;">✅ 已結束（等待更多球員）</div>'
+                            '<div style="text-align: center; color: #ff9800; font-weight: bold; padding: 10px; background: #fff3e0; border-radius: 5px;">⏳ 等待中（需要4名球員）</div>'
                         }
                     </div>
                 `;
@@ -581,9 +628,6 @@
             } else {
                 waitingBoxCard.style.display = 'none';
             }
-            
-            // 檢查是否顯示下一場按鈕
-            checkNextRound();
         }
 
         // 標記球場結束並自動替補
@@ -591,27 +635,38 @@
             if (court === 'A') {
                 courtAFinished = true;
                 finishedMatches++;
-                // A場結束，自動替補
+                document.getElementById('finishedMatches').textContent = finishedMatches;
+                // A場結束，自動替補(會自動調用saveToFirebase)
                 autoReplaceCourtA();
             } else if (court === 'B') {
                 courtBFinished = true;
                 finishedMatches++;
-                // B場結束，自動替補
+                document.getElementById('finishedMatches').textContent = finishedMatches;
+                // B場結束，自動替補(會自動調用saveToFirebase)
                 autoReplaceCourtB();
             }
-            
-            document.getElementById('finishedMatches').textContent = finishedMatches;
-            saveToFirebase();
         }
         
         // 自動替補A場
         function autoReplaceCourtA() {
-            // 等候區 = 所有球員 - B場正在打的球員
-            const onCourtB = (courtBFinished || currentCourtB.length === 0) ? [] : currentCourtB;
-            let waitingPlayers = players.filter(p => !onCourtB.includes(p));
+            console.log('🔄 A場自動替補開始');
+            console.log('所有球員:', players);
+            console.log('A場當前:', currentCourtA);
+            console.log('B場當前:', currentCourtB);
+            console.log('B場已結束?', courtBFinished);
             
-            // 如果等候區人數不足4人，保持A場顯示已結束狀態
+            // 計算等候區：所有球員 - B場正在打的球員（A場球員已自動成為等候區）
+            const onCourtB = (courtBFinished || currentCourtB.length === 0) ? [] : currentCourtB;
+            console.log('B場在場球員:', onCourtB);
+            
+            let waitingPlayers = players.filter(p => !onCourtB.includes(p));
+            console.log('等候區球員（包含剛結束A場的4人）:', waitingPlayers);
+            console.log('球員上場次數:', playerMatchCount);
+            
+            // 檢查等候區是否至少有4人可以上場
             if (waitingPlayers.length < 4) {
+                console.log('❌ 等候區人數不足4人，保持A場已結束狀態');
+                currentCourtA = []; // 清空A場
                 displayMatch();
                 saveToFirebase();
                 return;
@@ -626,9 +681,14 @@
                 return players.indexOf(a) - players.indexOf(b);
             });
             
-            // 選取前4人進入A場
+            console.log('排序後等候區:', waitingPlayers);
+            
+            // 選取前4人進入A場（自動從等候區輪替）
             currentCourtA = waitingPlayers.slice(0, 4);
+            console.log('✅ 新A場球員:', currentCourtA);
+            
             currentCourtA.forEach(p => playerMatchCount[p]++);
+            courtAStarted = true;
             courtAFinished = false;
             
             displayMatch();
@@ -637,12 +697,24 @@
         
         // 自動替補B場
         function autoReplaceCourtB() {
-            // 等候區 = 所有球員 - A場正在打的球員
-            const onCourtA = (courtAFinished || currentCourtA.length === 0) ? [] : currentCourtA;
-            let waitingPlayers = players.filter(p => !onCourtA.includes(p));
+            console.log('🔄 B場自動替補開始');
+            console.log('所有球員:', players);
+            console.log('A場當前:', currentCourtA);
+            console.log('B場當前:', currentCourtB);
+            console.log('A場已結束?', courtAFinished);
             
-            // 如果等候區人數不足4人，保持B場顯示已結束狀態
+            // 計算等候區：所有球員 - A場正在打的球員（B場球員已自動成為等候區）
+            const onCourtA = (courtAFinished || currentCourtA.length === 0) ? [] : currentCourtA;
+            console.log('A場在場球員:', onCourtA);
+            
+            let waitingPlayers = players.filter(p => !onCourtA.includes(p));
+            console.log('等候區球員（包含剛結束B場的4人）:', waitingPlayers);
+            console.log('球員上場次數:', playerMatchCount);
+            
+            // 檢查等候區是否至少有4人可以上場
             if (waitingPlayers.length < 4) {
+                console.log('❌ 等候區人數不足4人，保持B場已結束狀態');
+                currentCourtB = []; // 清空B場
                 displayMatch();
                 saveToFirebase();
                 return;
@@ -657,9 +729,14 @@
                 return players.indexOf(a) - players.indexOf(b);
             });
             
-            // 選取前4人進入B場
+            console.log('排序後等候區:', waitingPlayers);
+            
+            // 選取前4人進入B場（自動從等候區輪替）
             currentCourtB = waitingPlayers.slice(0, 4);
+            console.log('✅ 新B場球員:', currentCourtB);
+            
             currentCourtB.forEach(p => playerMatchCount[p]++);
+            courtBStarted = true;
             courtBFinished = false;
             
             displayMatch();
@@ -680,6 +757,8 @@
                     currentCourtB = data.currentCourtB || [];
                     courtAFinished = data.courtAFinished || false;
                     courtBFinished = data.courtBFinished || false;
+                    courtAStarted = data.courtAStarted || false;
+                    courtBStarted = data.courtBStarted || false;
                     finishedMatches = data.finishedMatches || 0;
                     
                     updateDisplay();
@@ -714,6 +793,8 @@
                 currentCourtB,
                 courtAFinished,
                 courtBFinished,
+                courtAStarted,
+                courtBStarted,
                 finishedMatches,
                 lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
             };
@@ -736,6 +817,8 @@
             currentCourtB = [];
             courtAFinished = false;
             courtBFinished = false;
+            courtAStarted = false;
+            courtBStarted = false;
             finishedMatches = 0;
             
             document.getElementById('currentMatch').style.display = 'none';
