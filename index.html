@@ -223,6 +223,97 @@
             font-size: 14px;
             margin-top: 10px;
         }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .header p {
+                font-size: 12px;
+            }
+
+            .card {
+                padding: 15px;
+                margin-bottom: 10px;
+            }
+
+            .input-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .input-group input[type="text"],
+            .input-group .btn {
+                width: 100%;
+            }
+
+            /* 當前比賽和等候區改為單欄 */
+            #currentMatch > div {
+                grid-template-columns: 1fr !important;
+            }
+
+            /* 狀態和球員列表改為單欄 */
+            .container > div:last-child {
+                grid-template-columns: 1fr !important;
+            }
+
+            .courts-container {
+                grid-template-columns: 1fr;
+            }
+
+            .players-list {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+
+            .player-badge {
+                font-size: 12px;
+                padding: 6px;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+
+            /* 重置按鈕在小螢幕上調整位置 */
+            button[onclick="resetGame()"] {
+                position: fixed !important;
+                top: 10px !important;
+                right: 10px !important;
+                padding: 8px 15px !important;
+                font-size: 12px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .card h3 {
+                font-size: 16px;
+            }
+
+            .court-title {
+                font-size: 18px;
+            }
+
+            .player-item {
+                font-size: 14px;
+                padding: 8px;
+            }
+
+            .hint {
+                font-size: 11px;
+                padding: 8px 12px;
+            }
+        }
     </style>
 </head>
 <body>
