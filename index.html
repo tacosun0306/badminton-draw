@@ -234,14 +234,16 @@
 
         <!-- 球員登記輸入欄 -->
         <div class="card" style="position: sticky; top: 10px; z-index: 100; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-            <div class="input-group" style="margin-bottom: 0;">
-                <input 
-                    type="text" 
-                    id="playerNameInput" 
-                    placeholder="輸入你的姓名" 
-                    onkeypress="if(event.key === 'Enter') addPlayer()">
-                <button class="btn btn-primary" onclick="addPlayer()">登記入場</button>
-                <button class="btn btn-danger" onclick="resetGame()">重置</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                    <input 
+                        type="text" 
+                        id="playerNameInput" 
+                        placeholder="輸入你的姓名" 
+                        onkeypress="if(event.key === 'Enter') addPlayer()">
+                    <button class="btn btn-primary" onclick="addPlayer()">登記入場</button>
+                </div>
+                <button class="btn btn-danger" onclick="resetGame()" style="margin-left: 15px; white-space: nowrap;">比賽重置</button>
             </div>
         </div>
 
