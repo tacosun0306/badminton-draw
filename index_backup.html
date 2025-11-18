@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羽球抽籤系統</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .players-input {
+            margin-bottom: 20px;
+        }
+
+        .quick-input-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+        }
+
+        .quick-input-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        .quick-input-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .quick-input-hint {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #0c5460;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .court-control {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .court-control button {
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+
+        .court.finished {
+            opacity: 0.6;
+            position: relative;
+        }
+
+        .court.finished::after {
+            content: '✓ 已結束';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .next-round-section {
+            background: #e7f3ff;
+            border: 2px solid #2196F3;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .next-round-section h3 {
+            color: #1976D2;
+            margin-bottom: 15px;
+        }
+
+        .current-players-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .player-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .sync-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .sync-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+
+        .sync-indicator.disconnected {
+            background: #dc3545;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .courts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .court {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border: 3px solid #667eea;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .court-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .court-players {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .player-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-size: 16px;
+        }
+
+        .waiting-list {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .waiting-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .waiting-players {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .waiting-player {
+            background: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: 2px solid #ffc107;
+            font-weight: bold;
+        }
+
+        .round-info {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 1.1em;
+        }
+
+        .firebase-setup {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .firebase-setup h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .firebase-setup p {
+            color: #856404;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏸 羽球抽籤系統</h1>
+
+        <!-- 同步狀態 -->
+        <div class="sync-status">
+            <div class="sync-indicator" id="syncIndicator"></div>
+            <span id="syncStatus">連線中...</span>
+        </div>
+
+        <!-- Firebase 設定提示 -->
+        <div class="firebase-setup" id="firebaseSetup" style="display: none;">
+            <h3>🔥 啟用即時同步功能</h3>
+            <p>目前使用本地模式。若要讓所有人看到相同賽程，請設定 Firebase：</p>
+            <p>1. 前往 <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a> 建立專案</p>
+            <p>2. 啟用 Realtime Database</p>
+            <p>3. 將設定資訊填入程式碼中的 firebaseConfig</p>
+        </div>
+
+        <!-- 球員輸入區 -->
+        <div class="section">
+            <div class="section-title">球員名單 (8-16人)</div>
+            <div class="info-box">
+                <strong>📌 使用說明</strong>
+                • 最少8人、最多16人可開始比賽<br>
+                • 每行輸入一位球員姓名，順序即為第一輪出場順序<br>
+                • 系統會根據實際人數自動調整場次（8人以上開兩場，未滿8人開一場）<br>
+                • 第二輪起採亂數抽籤，優先安排打較少場次的球員
+            </div>
+            <div class="players-input" id="playersInput">
+                <div class="quick-input-container">
+                    <textarea 
+                        class="quick-input-textarea" 
+                        id="playersTextarea" 
+                        placeholder="請輸入球員名單，每行一位球員（8-16人）
+例如：
+王小明
+李大華
+張三
+劉四
+陳五
+林六
+黃七
+吳八
+...">
+                    </textarea>
+                    <div class="quick-input-hint">
+                        💡 提示：8人以上同時開兩場，未滿8人只開一場
+                    </div>
+                </div>
+                <div class="current-players-display" id="currentPlayersDisplay"></div>
+            </div>
+            <div class="button-group">
+                <button class="btn-secondary" onclick="updatePlayersList()">更新球員名單</button>
+            </div>
+        </div>
+
+        <!-- 控制按鈕 -->
+        <div class="section">
+            <div class="button-group">
+                <button class="btn-primary" onclick="startFirstRound()">開始第一輪 (按順序)</button>
+                <button class="btn-secondary" onclick="resetGame()">重新開始</button>
+            </div>
+        </div>
+
+        <!-- 當前場次顯示 -->
+        <div class="section" id="currentRoundSection" style="display: none;">
+            <div class="round-info" id="roundInfo"></div>
+            <div class="courts-container" id="courtsContainer"></div>
+            <div class="waiting-list" id="waitingList"></div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // 本地模式 - 不使用 Firebase
+        let isFirebaseEnabled = false;
+
+        let players = [];
+        let currentRound = 0;
+        let playersInCourt = new Set();
+        let waitingPlayers = [];
+        let matchHistory = [];
+        let playerMatchCount = {}; // 記錄每個球員已打的場次
+        let courtAFinished = false; // 球場A是否結束
+        let courtBFinished = false; // 球場B是否結束
+        let currentCourtA = []; // 當前球場A的球員
+        let currentCourtB = []; // 當前球場B的球員
+
+        // 初始化
+        function init() {
+            loadDefaultPlayers();
+            updateSyncStatus('本地模式', false);
+        }
+
+        // 載入預設球員
+        function loadDefaultPlayers() {
+            const defaultPlayers = Array.from({length: 8}, (_, i) => `球員${i + 1}`);
+            document.getElementById('playersTextarea').value = defaultPlayers.join('\n');
+            updatePlayersDisplay();
+        }
+
+
+
+        // 更新同步狀態
+        function updateSyncStatus(message, connected) {
+            const indicator = document.getElementById('syncIndicator');
+            const status = document.getElementById('syncStatus');
+            
+            if (connected) {
+                indicator.classList.remove('disconnected');
+                status.textContent = message;
+            } else {
+                indicator.classList.add('disconnected');
+                status.textContent = message;
+            }
+        }
+
+        // 更新球員顯示
+        function updatePlayersDisplay() {
+            const textarea = document.getElementById('playersTextarea');
+            const lines = textarea.value.split('\n').filter(line => line.trim());
+            
+            const display = document.getElementById('currentPlayersDisplay');
+            if (lines.length > 0) {
+                display.innerHTML = lines.map((name, idx) => 
+                    `<div class="player-badge">${idx + 1}. ${name.trim()}</div>`
+                ).join('');
+            } else {
+                display.innerHTML = '';
+            }
+        }
+
+        // 更新球員名單
+        function updatePlayersList() {
+            const textarea = document.getElementById('playersTextarea');
+            const lines = textarea.value.split('\n').filter(line => line.trim());
+            
+            if (lines.length < 8) {
+                alert(`至少需要8位球員才能開始比賽！目前有 ${lines.length} 位。`);
+                return;
+            }
+            
+            if (lines.length > 16) {
+                alert(`最多只能16位球員！目前有 ${lines.length} 位。`);
+                return;
+            }
+            
+            players = lines.map(line => line.trim());
+            playerMatchCount = {};
+            players.forEach(p => playerMatchCount[p] = 0);
+            
+            updatePlayersDisplay();
+            
+            if (isFirebaseEnabled) {
+                saveToFirebase();
+            }
+            
+            alert('球員名單已更新！');
+        }
+
+        // 儲存到本地（本地模式不需要儲存到雲端）
+        function saveToFirebase() {
+            // 本地模式：資料儲存在記憶體中
+            console.log('本地模式：資料已更新');
+        }
+
+        // 開始第一輪
+        function startFirstRound() {
+            const textarea = document.getElementById('playersTextarea');
+            const lines = textarea.value.split('\n').filter(line => line.trim());
+            
+            if (lines.length < 8) {
+                alert(`至少需要8位球員才能開始！目前有 ${lines.length} 位。`);
+                return;
+            }
+            
+            players = lines.map(line => line.trim());
+            playerMatchCount = {};
+            players.forEach(p => playerMatchCount[p] = 0);
+            
+            currentRound = 1;
+            playersInCourt = new Set();
+            
+            // 第一輪按順序分配
+            const totalPlayers = players.length;
+            let court1, court2;
+            
+            if (totalPlayers >= 8) {
+                // 有8人以上，兩場同時進行
+                court1 = players.slice(0, 4);
+                court2 = players.slice(4, 8);
+            } else {
+                // 少於8人，只開一場
+                court1 = players.slice(0, 4);
+                court2 = [];
+            }
+            
+            court1.forEach(p => {
+                playersInCourt.add(p);
+                playerMatchCount[p]++;
+            });
+            
+            if (court2.length > 0) {
+                court2.forEach(p => {
+                    playersInCourt.add(p);
+                    playerMatchCount[p]++;
+                });
+                waitingPlayers = players.slice(8);
+            } else {
+                waitingPlayers = players.slice(4);
+            }
+            
+            // 記錄到歷史
+            matchHistory.push({
+                round: currentRound,
+                courts: [court1, court2]
+            });
+            
+            // 重置場次結束狀態
+            courtAFinished = false;
+            courtBFinished = false;
+            currentCourtA = court1;
+            currentCourtB = court2;
+            
+            displayCurrentRound(court1, court2);
+            
+            if (isFirebaseEnabled) {
+                saveToFirebase();
+            }
+        }
+
+        // 標記球場結束
+        function finishCourt(courtName) {
+            if (courtName === 'A') {
+                courtAFinished = true;
+                // 將球場A的球員移到等候區
+                currentCourtA.forEach(p => {
+                    if (!waitingPlayers.includes(p)) {
+                        waitingPlayers.push(p);
+                    }
+                });
+            } else if (courtName === 'B') {
+                courtBFinished = true;
+                // 將球場B的球員移到等候區
+                currentCourtB.forEach(p => {
+                    if (!waitingPlayers.includes(p)) {
+                        waitingPlayers.push(p);
+                    }
+                });
+            }
+            
+            // 更新顯示
+            displayCurrentRound(currentCourtA, currentCourtB);
+            
+            // 檢查是否可以開始下一輪
+            checkNextRoundReady();
+            
+            if (isFirebaseEnabled) {
+                saveToFirebase();
+            }
+        }
+
+        // 檢查是否可以開始下一輪
+        function checkNextRoundReady() {
+            const hasCourtB = currentCourtB && currentCourtB.length > 0;
+            const allFinished = courtAFinished && (!hasCourtB || courtBFinished);
+            
+            if (allFinished && waitingPlayers.length >= 4) {
+                // 顯示下一輪按鈕
+                displayNextRoundButton();
+            }
+        }
+
+        // 顯示下一輪按鈕
+        function displayNextRoundButton() {
+            const nextRoundSection = document.getElementById('nextRoundSection');
+            if (nextRoundSection) {
+                nextRoundSection.style.display = 'block';
+            }
+        }
+
+        // 開始下一輪（亂數抽籤）
+        function startNextRound() {
+            if (waitingPlayers.length < 4) {
+                alert('等候區人數不足4人，無法開始下一輪！');
+                return;
+            }
+            
+            // 重置場次結束狀態
+            courtAFinished = false;
+            courtBFinished = false;
+            
+            currentRound++;
+            
+            // 從等候區隨機抽取球員
+            const shuffled = [...waitingPlayers].sort(() => Math.random() - 0.5);
+            
+            // 優先選擇打較少場次的球員
+            shuffled.sort((a, b) => playerMatchCount[a] - playerMatchCount[b]);
+            
+            // 根據等候區人數決定開幾場
+            const availablePlayers = Math.min(shuffled.length, 8);
+            const court1 = shuffled.slice(0, Math.min(4, availablePlayers));
+            const court2 = availablePlayers >= 8 ? shuffled.slice(4, 8) : [];
+            
+            // 更新場上球員
+            const previousPlayers = Array.from(playersInCourt);
+            playersInCourt = new Set([...court1, ...(court2 || [])]);
+            
+            court1.forEach(p => playerMatchCount[p]++);
+            if (court2.length > 0) {
+                court2.forEach(p => playerMatchCount[p]++);
+            }
+            
+            // 更新等候區（原本場上的球員回到等候區）
+            waitingPlayers = waitingPlayers.filter(p => !playersInCourt.has(p));
+            previousPlayers.forEach(p => {
+                if (!playersInCourt.has(p)) {
+                    waitingPlayers.push(p);
+                }
+            });
+            
+            // 記錄到歷史
+            matchHistory.push({
+                round: currentRound,
+                courts: [court1, court2]
+            });
+            
+            // 更新當前場次
+            currentCourtA = court1;
+            currentCourtB = court2;
+            
+            displayCurrentRound(court1, court2);
+            
+            if (isFirebaseEnabled) {
+                saveToFirebase();
+            }
+        }
+
+        // 顯示當前回合
+        function displayCurrentRound(court1, court2) {
+            document.getElementById('currentRoundSection').style.display = 'block';
+            document.getElementById('roundInfo').textContent = `第 ${currentRound} 輪比賽`;
+            
+            const courtsContainer = document.getElementById('courtsContainer');
+            let courtsHTML = `
+                <div class="court ${courtAFinished ? 'finished' : ''}">
+                    <div class="court-title">🏸 球場 A</div>
+                    <div class="court-players">
+                        ${court1.map(p => `<div class="player-item">${p} (已打${playerMatchCount[p] || 0}場)</div>`).join('')}
+                    </div>
+                    ${!courtAFinished ? '<div class="court-control"><button class="btn-success" onclick="finishCourt(\'A\')">球場A結束</button></div>' : ''}
+                </div>
+            `;
+            
+            if (court2 && court2.length > 0) {
+                courtsHTML += `
+                    <div class="court ${courtBFinished ? 'finished' : ''}">
+                        <div class="court-title">🏸 球場 B</div>
+                        <div class="court-players">
+                            ${court2.map(p => `<div class="player-item">${p} (已打${playerMatchCount[p] || 0}場)</div>`).join('')}
+                        </div>
+                        ${!courtBFinished ? '<div class="court-control"><button class="btn-success" onclick="finishCourt(\'B\')">球場B結束</button></div>' : ''}
+                    </div>
+                `;
+            }
+            
+            courtsContainer.innerHTML = courtsHTML;
+            
+            const waitingList = document.getElementById('waitingList');
+            if (waitingPlayers.length > 0) {
+                waitingList.innerHTML = `
+                    <div class="waiting-title">⏳ 等候區 (${waitingPlayers.length}人)</div>
+                    <div class="waiting-players">
+                        ${waitingPlayers.map(p => `<div class="waiting-player">${p} (已打${playerMatchCount[p] || 0}場)</div>`).join('')}
+                    </div>
+                `;
+            } else {
+                waitingList.innerHTML = `
+                    <div class="waiting-title">⏳ 等候區</div>
+                    <div class="empty-state" style="padding: 20px;">目前無等候球員</div>
+                `;
+            }
+            
+            // 顯示或隱藏下一輪按鈕
+            const hasCourtB = court2 && court2.length > 0;
+            const allFinished = courtAFinished && (!hasCourtB || courtBFinished);
+            const canStartNext = allFinished && waitingPlayers.length >= 4;
+            
+            let nextRoundSection = document.getElementById('nextRoundSection');
+            if (!nextRoundSection) {
+                // 建立下一輪按鈕區域
+                nextRoundSection = document.createElement('div');
+                nextRoundSection.id = 'nextRoundSection';
+                nextRoundSection.className = 'next-round-section';
+                nextRoundSection.innerHTML = `
+                    <h3>🎯 準備下一輪</h3>
+                    <p>兩場比賽都已結束，可以開始下一輪了！</p>
+                    <button class="btn-success" onclick="startNextRound()" style="margin-top: 10px; font-size: 18px;">開始下一輪 (亂數抽籤)</button>
+                `;
+                document.getElementById('currentRoundSection').appendChild(nextRoundSection);
+            }
+            
+            nextRoundSection.style.display = canStartNext ? 'block' : 'none';
+        }
+        }
+
+        // 重新開始
+        function resetGame() {
+            if (confirm('確定要重新開始嗎？所有記錄將被清除。')) {
+                currentRound = 0;
+                playersInCourt = new Set();
+                waitingPlayers = [];
+                matchHistory = [];
+                playerMatchCount = {};
+                courtAFinished = false;
+                courtBFinished = false;
+                currentCourtA = [];
+                currentCourtB = [];
+                
+                document.getElementById('currentRoundSection').style.display = 'none';
+                
+                loadDefaultPlayers();
+                
+                if (isFirebaseEnabled) {
+                    saveToFirebase();
+                }
+            }
+        }
+
+        // 即時更新顯示
+        document.getElementById('playersTextarea').addEventListener('input', updatePlayersDisplay);
+
+        // 頁面載入時初始化
+        window.onload = init;
+    </script>
+</body>
+</html>
