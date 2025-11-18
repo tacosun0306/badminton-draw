@@ -611,7 +611,7 @@
             const availablePlayers = players.filter(p => !onCourtB.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人，保持已結束狀態，等待更多球員
+                // 可用人數不足4人，保持球場顯示「已結束」狀態
                 displayMatch();
                 return;
             }
@@ -760,7 +760,13 @@
                     finishedMatches = data.finishedMatches || 0;
                     
                     updateDisplay();
+                    
+                    // 如果有球場正在進行，立即顯示
                     if (currentCourtA.length > 0 || currentCourtB.length > 0) {
+                        const currentMatchDiv = document.getElementById('currentMatch');
+                        if (currentMatchDiv) {
+                            currentMatchDiv.style.display = 'block';
+                        }
                         displayMatch();
                     }
                     console.log('📡 資料已同步');
