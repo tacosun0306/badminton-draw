@@ -357,7 +357,9 @@
                     id="playerNameInput" 
                     placeholder="輸入你的姓名" 
                     onkeypress="if(event.key === 'Enter') addPlayer()">
-                <button class="btn btn-primary" onclick="addPlayer()">登記入場</button>
+                <button class="btn btn-primary" onclick="addPlayer()">
+                    登記入場 <span id="playerCountBadge" style="background: rgba(255,255,255,0.3); padding: 2px 8px; border-radius: 12px; margin-left: 8px; font-size: 14px;">0人</span>
+                </button>
             </div>
         </div>
 
@@ -570,6 +572,12 @@
         // 更新顯示
         function updateDisplay() {
             document.getElementById('totalPlayers').textContent = players.length;
+            
+            // 更新按鈕上的人數徽章
+            const badge = document.getElementById('playerCountBadge');
+            if (badge) {
+                badge.textContent = `${players.length}人`;
+            }
             
             const playersList = document.getElementById('playersList');
             if (players.length > 0) {
