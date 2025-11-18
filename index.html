@@ -606,163 +606,66 @@
         
         // 自動替補A場
         function autoReplaceCourtA() {
-            // 計算可用球員(所有球員減去B場正在打的和剛結束的A場)
+            // 等候區 = 所有球員 - B場正在打的球員
             const onCourtB = (courtBFinished || currentCourtB.length === 0) ? [] : currentCourtB;
-            const justFinishedA = currentCourtA; // 保存剛結束的A場球員
-            const availablePlayers = players.filter(p => !onCourtB.includes(p) && !justFinishedA.includes(p));
+            let waitingPlayers = players.filter(p => !onCourtB.includes(p));
             
-            if (availablePlayers.length < 4) {
-                // 可用人數不足4人,保持球場顯示「已結束」狀態,不清空currentCourtA
+            // 如果等候區人數不足4人，保持A場顯示已結束狀態
+            if (waitingPlayers.length < 4) {
                 displayMatch();
                 saveToFirebase();
                 return;
             }
             
-            // 如果還有人按順序沒上場過
-            if (nextPlayerIndex < players.length) {
-                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtB.includes(p) && !justFinishedA.includes(p));
-                
-                if (notYetPlayed.length >= 4) {
-                    // 還有4人以上沒打過，按順序取4人
-                    currentCourtA = notYetPlayed.slice(0, 4);
-                    // 更新nextPlayerIndex
-                    notYetPlayed.slice(0, 4).forEach(p => {
-                        const idx = players.indexOf(p);
-                        if (idx + 1 > nextPlayerIndex) nextPlayerIndex = idx + 1;
-                    });
-                } else if (notYetPlayed.length > 0) {
-                    // 還有1-3人沒打過，需要補齊
-                    const alreadyPlayed = availablePlayers.filter(p => 
-                        !notYetPlayed.includes(p) && playerMatchCount[p] > 0
-                    );
-                    const shuffled = alreadyPlayed.sort(() => Math.random() - 0.5);
-                    const needCount = 4 - notYetPlayed.length;
-                    currentCourtA = [...notYetPlayed, ...shuffled.slice(0, needCount)];
-                    nextPlayerIndex = players.length;
-                } else {
-                    // 所有人都按順序打過了，改用亂數
-                    assignRandomForCourt('A');
-                    return;
-                }
-            } else {
-                // 改用亂數配對
-                assignRandomForCourt('A');
-                return;
-            }
+            // 按上場次數排序等候區球員（次數少的優先）
+            waitingPlayers.sort((a, b) => {
+                const countA = playerMatchCount[a] || 0;
+                const countB = playerMatchCount[b] || 0;
+                if (countA !== countB) return countA - countB;
+                // 次數相同則按原始順序
+                return players.indexOf(a) - players.indexOf(b);
+            });
             
+            // 選取前4人進入A場
+            currentCourtA = waitingPlayers.slice(0, 4);
             currentCourtA.forEach(p => playerMatchCount[p]++);
             courtAFinished = false;
+            
             displayMatch();
             saveToFirebase();
         }
         
         // 自動替補B場
         function autoReplaceCourtB() {
-            // 計算可用球員(所有球員減去A場正在打的和剛結束的B場)
+            // 等候區 = 所有球員 - A場正在打的球員
             const onCourtA = (courtAFinished || currentCourtA.length === 0) ? [] : currentCourtA;
-            const justFinishedB = currentCourtB; // 保存剛結束的B場球員
-            const availablePlayers = players.filter(p => !onCourtA.includes(p) && !justFinishedB.includes(p));
+            let waitingPlayers = players.filter(p => !onCourtA.includes(p));
             
-            if (availablePlayers.length < 4) {
-                // 可用人數不足4人,保持已結束狀態,等待更多球員,不清空currentCourtB
+            // 如果等候區人數不足4人，保持B場顯示已結束狀態
+            if (waitingPlayers.length < 4) {
                 displayMatch();
                 saveToFirebase();
                 return;
             }
             
-            // 如果還有人按順序沒上場過
-            if (nextPlayerIndex < players.length) {
-                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtA.includes(p) && !justFinishedB.includes(p));
-                
-                if (notYetPlayed.length >= 4) {
-                    // 還有4人以上沒打過，按順序取4人
-                    currentCourtB = notYetPlayed.slice(0, 4);
-                    // 更新nextPlayerIndex
-                    notYetPlayed.slice(0, 4).forEach(p => {
-                        const idx = players.indexOf(p);
-                        if (idx + 1 > nextPlayerIndex) nextPlayerIndex = idx + 1;
-                    });
-                } else if (notYetPlayed.length > 0) {
-                    // 還有1-3人沒打過，需要補齊
-                    const alreadyPlayed = availablePlayers.filter(p => 
-                        !notYetPlayed.includes(p) && playerMatchCount[p] > 0
-                    );
-                    const shuffled = alreadyPlayed.sort(() => Math.random() - 0.5);
-                    const needCount = 4 - notYetPlayed.length;
-                    currentCourtB = [...notYetPlayed, ...shuffled.slice(0, needCount)];
-                    nextPlayerIndex = players.length;
-                } else {
-                    // 所有人都按順序打過了，改用亂數
-                    assignRandomForCourt('B');
-                    return;
-                }
-            } else {
-                // 改用亂數配對
-                assignRandomForCourt('B');
-                return;
-            }
+            // 按上場次數排序等候區球員（次數少的優先）
+            waitingPlayers.sort((a, b) => {
+                const countA = playerMatchCount[a] || 0;
+                const countB = playerMatchCount[b] || 0;
+                if (countA !== countB) return countA - countB;
+                // 次數相同則按原始順序
+                return players.indexOf(a) - players.indexOf(b);
+            });
             
+            // 選取前4人進入B場
+            currentCourtB = waitingPlayers.slice(0, 4);
             currentCourtB.forEach(p => playerMatchCount[p]++);
             courtBFinished = false;
+            
             displayMatch();
             saveToFirebase();
         }
         
-        // 為指定球場亂數配對
-        function assignRandomForCourt(court) {
-            // 找出不在場上的球員（排除已結束或當前正在替補的球場）
-            let onCourt = [];
-            if (court === 'A') {
-                // A場正在替補，只計算B場正在進行的球員
-                if (!courtBFinished && currentCourtB.length > 0) {
-                    onCourt = [...currentCourtB];
-                }
-            } else {
-                // B場正在替補，只計算A場正在進行的球員
-                if (!courtAFinished && currentCourtA.length > 0) {
-                    onCourt = [...currentCourtA];
-                }
-            }
-            
-            const available = players.filter(p => !onCourt.includes(p));
-            
-            if (available.length < 4) {
-                // 不足4人，顯示提示
-                displayMatch();
-                saveToFirebase();
-                return;
-            }
-            
-            // 按出賽次數排序
-            const sortedAvailable = available.sort((a, b) => 
-                playerMatchCount[a] - playerMatchCount[b]
-            );
-            
-            // 隨機打亂出賽次數最少的球員
-            const minMatches = Math.min(...available.map(p => playerMatchCount[p]));
-            const leastPlayed = sortedAvailable.filter(p => playerMatchCount[p] === minMatches);
-            const others = sortedAvailable.filter(p => playerMatchCount[p] > minMatches);
-            
-            const shuffledLeast = leastPlayed.sort(() => Math.random() - 0.5);
-            const shuffledOthers = others.sort(() => Math.random() - 0.5);
-            const selected = [...shuffledLeast, ...shuffledOthers].slice(0, 4);
-            
-            if (court === 'A') {
-                currentCourtA = selected;
-                currentCourtA.forEach(p => playerMatchCount[p]++);
-                courtAFinished = false;
-            } else {
-                currentCourtB = selected;
-                currentCourtB.forEach(p => playerMatchCount[p]++);
-                courtBFinished = false;
-            }
-            
-            displayMatch();
-            saveToFirebase();
-        }
-
-
-
         // Firebase 即時同步
         function startRealtimeSync() {
             if (!isFirebaseEnabled) return;
