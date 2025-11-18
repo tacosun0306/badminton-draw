@@ -523,14 +523,6 @@
         function displayMatch() {
             document.getElementById('currentMatch').style.display = 'block';
             
-            // 清理空陣列（已結束且沒有替補的球場）
-            if (courtAFinished && currentCourtA.length === 0) {
-                courtAFinished = false;
-            }
-            if (courtBFinished && currentCourtB.length === 0) {
-                courtBFinished = false;
-            }
-            
             const court1 = currentCourtA;
             const court2 = currentCourtB;
             
@@ -619,9 +611,7 @@
             const availablePlayers = players.filter(p => !onCourtB.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人，清空A場
-                currentCourtA = [];
-                courtAFinished = false;
+                // 可用人數不足4人，保持已結束狀態，等待更多球員
                 displayMatch();
                 return;
             }
@@ -670,9 +660,7 @@
             const availablePlayers = players.filter(p => !onCourtA.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人，清空B場
-                currentCourtB = [];
-                courtBFinished = false;
+                // 可用人數不足4人，保持已結束狀態，等待更多球員
                 displayMatch();
                 return;
             }
