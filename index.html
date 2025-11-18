@@ -704,8 +704,20 @@
         
         // 為指定球場亂數配對
         function assignRandomForCourt(court) {
-            // 找出不在場上的球員
-            const onCourt = [...currentCourtA, ...currentCourtB];
+            // 找出不在場上的球員（排除已結束或當前正在替補的球場）
+            let onCourt = [];
+            if (court === 'A') {
+                // A場正在替補，只計算B場正在進行的球員
+                if (!courtBFinished && currentCourtB.length > 0) {
+                    onCourt = [...currentCourtB];
+                }
+            } else {
+                // B場正在替補，只計算A場正在進行的球員
+                if (!courtAFinished && currentCourtA.length > 0) {
+                    onCourt = [...currentCourtA];
+                }
+            }
+            
             const available = players.filter(p => !onCourt.includes(p));
             
             if (available.length < 4) {
