@@ -606,12 +606,13 @@
         
         // 自動替補A場
         function autoReplaceCourtA() {
-            // 計算可用球員(所有球員減去B場正在打的)
+            // 計算可用球員(所有球員減去B場正在打的和剛結束的A場)
             const onCourtB = (courtBFinished || currentCourtB.length === 0) ? [] : currentCourtB;
-            const availablePlayers = players.filter(p => !onCourtB.includes(p));
+            const justFinishedA = currentCourtA; // 保存剛結束的A場球員
+            const availablePlayers = players.filter(p => !onCourtB.includes(p) && !justFinishedA.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人,保持球場顯示「已結束」狀態
+                // 可用人數不足4人,保持球場顯示「已結束」狀態,不清空currentCourtA
                 displayMatch();
                 saveToFirebase();
                 return;
@@ -619,7 +620,7 @@
             
             // 如果還有人按順序沒上場過
             if (nextPlayerIndex < players.length) {
-                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtB.includes(p));
+                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtB.includes(p) && !justFinishedA.includes(p));
                 
                 if (notYetPlayed.length >= 4) {
                     // 還有4人以上沒打過，按順序取4人
@@ -657,12 +658,13 @@
         
         // 自動替補B場
         function autoReplaceCourtB() {
-            // 計算可用球員(所有球員減去A場正在打的)
+            // 計算可用球員(所有球員減去A場正在打的和剛結束的B場)
             const onCourtA = (courtAFinished || currentCourtA.length === 0) ? [] : currentCourtA;
-            const availablePlayers = players.filter(p => !onCourtA.includes(p));
+            const justFinishedB = currentCourtB; // 保存剛結束的B場球員
+            const availablePlayers = players.filter(p => !onCourtA.includes(p) && !justFinishedB.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人,保持已結束狀態,等待更多球員
+                // 可用人數不足4人,保持已結束狀態,等待更多球員,不清空currentCourtB
                 displayMatch();
                 saveToFirebase();
                 return;
@@ -670,7 +672,7 @@
             
             // 如果還有人按順序沒上場過
             if (nextPlayerIndex < players.length) {
-                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtA.includes(p));
+                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtA.includes(p) && !justFinishedB.includes(p));
                 
                 if (notYetPlayed.length >= 4) {
                     // 還有4人以上沒打過，按順序取4人
