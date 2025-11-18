@@ -606,20 +606,19 @@
         
         // 自動替補A場
         function autoReplaceCourtA() {
-            // 計算可用球員（所有球員減去B場正在打的和A場剛結束的）
+            // 計算可用球員(所有球員減去B場正在打的)
             const onCourtB = (courtBFinished || currentCourtB.length === 0) ? [] : currentCourtB;
-            const justFinished = currentCourtA; // 剛結束的A場球員
-            const availablePlayers = players.filter(p => !onCourtB.includes(p) && !justFinished.includes(p));
+            const availablePlayers = players.filter(p => !onCourtB.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人，保持球場顯示「已結束」狀態
+                // 可用人數不足4人,保持球場顯示「已結束」狀態
                 displayMatch();
                 return;
             }
             
             // 如果還有人按順序沒上場過
             if (nextPlayerIndex < players.length) {
-                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtB.includes(p) && !justFinished.includes(p));
+                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtB.includes(p));
                 
                 if (notYetPlayed.length >= 4) {
                     // 還有4人以上沒打過，按順序取4人
@@ -652,24 +651,24 @@
             currentCourtA.forEach(p => playerMatchCount[p]++);
             courtAFinished = false;
             displayMatch();
+            saveToFirebase();
         }
         
         // 自動替補B場
         function autoReplaceCourtB() {
-            // 計算可用球員（所有球員減去A場正在打的和B場剛結束的）
+            // 計算可用球員(所有球員減去A場正在打的)
             const onCourtA = (courtAFinished || currentCourtA.length === 0) ? [] : currentCourtA;
-            const justFinished = currentCourtB; // 剛結束的B場球員
-            const availablePlayers = players.filter(p => !onCourtA.includes(p) && !justFinished.includes(p));
+            const availablePlayers = players.filter(p => !onCourtA.includes(p));
             
             if (availablePlayers.length < 4) {
-                // 可用人數不足4人，保持已結束狀態，等待更多球員
+                // 可用人數不足4人,保持已結束狀態,等待更多球員
                 displayMatch();
                 return;
             }
             
             // 如果還有人按順序沒上場過
             if (nextPlayerIndex < players.length) {
-                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtA.includes(p) && !justFinished.includes(p));
+                const notYetPlayed = players.slice(nextPlayerIndex).filter(p => !onCourtA.includes(p));
                 
                 if (notYetPlayed.length >= 4) {
                     // 還有4人以上沒打過，按順序取4人
@@ -702,6 +701,7 @@
             currentCourtB.forEach(p => playerMatchCount[p]++);
             courtBFinished = false;
             displayMatch();
+            saveToFirebase();
         }
         
         // 為指定球場亂數配對
@@ -753,6 +753,7 @@
             }
             
             displayMatch();
+            saveToFirebase();
         }
 
 
