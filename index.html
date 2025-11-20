@@ -191,6 +191,7 @@
             color: #856404;
             font-weight: 500;
             font-size: 12px;
+            position: relative;
         }
         
         .waiting-player small {
@@ -198,6 +199,26 @@
             margin-top: 1px;
             font-size: 10px;
             color: #856404;
+        }
+
+        .waiting-player-tag {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+            animation: blinkTag 1.5s ease-in-out infinite;
+            white-space: nowrap;
+        }
+
+        @keyframes blinkTag {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.05); }
         }
 
         .next-round-box {
@@ -398,6 +419,7 @@
         let finishedMatches = 0;
         let deletedPlayers = {}; // 記錄刪除的球員及其上場次數
         let pairHistory = {}; // 記錄球員配對歷史 {playerA: {playerB: count, playerC: count}}
+        let nextAPlayers = []; // 下一場要上場的球員
 
         // 新增球員
         function addPlayer() {
@@ -747,14 +769,58 @@
             
             document.getElementById('onCourtCount').textContent = onCourt.length;
             
-            // 更新等候區
+            // 預先從等候區抽選下一場要上場的4人（每次做完一個組合後才抽新的，避免經常變動）
+            if (waiting.length >= 4 && nextAPlayers.length === 0) {
+                // 先從 localStorage 嘗試恢復
+                const stored = localStorage.getItem('nextAPlayers');
+                const storedWaiting = localStorage.getItem('nextAPlayersWaiting');
+                if (stored && storedWaiting && JSON.parse(storedWaiting) === waiting.length) {
+                    try {
+                        nextAPlayers = JSON.parse(stored);
+                        console.log('✅ 從 localStorage 恢復準備上場球員:', nextAPlayers);
+                    } catch(e) {
+                        nextAPlayers = [];
+                    }
+                }
+                // 若無法恢復或等候區人數變動，才重新抽選
+                if (nextAPlayers.length === 0 || !nextAPlayers.every(p => waiting.includes(p))) {
+                    // 試50種組合，選擇配對分數最低的
+                    let bestNext = null, bestScore = Infinity;
+                    for (let attempt = 0; attempt < 50; attempt++) {
+                        const shuffled = [...waiting].sort(() => Math.random() - 0.5);
+                        const candidate = shuffled.slice(0, 4);
+                        const score = getPairingScore(candidate);
+                        if (score < bestScore) {
+                            bestScore = score;
+                            bestNext = candidate;
+                        }
+                    }
+                    nextAPlayers = bestNext;
+                    // 儲存到 localStorage
+                    localStorage.setItem('nextAPlayers', JSON.stringify(nextAPlayers));
+                    localStorage.setItem('nextAPlayersWaiting', waiting.length.toString());
+                    console.log('💾 準備上場球員已儲存:', nextAPlayers);
+                }
+            } else if (waiting.length < 4) {
+                // 等候區不足4人時清空
+                nextAPlayers = [];
+                localStorage.removeItem('nextAPlayers');
+                localStorage.removeItem('nextAPlayersWaiting');
+            }
+            
+            // 更新等候區（用標籤標記下一場要上場的球員）
             const waitingBoxCard = document.getElementById('waitingBoxCard');
             if (waiting.length > 0) {
                 waitingBoxCard.style.display = 'block';
                 document.getElementById('waitingPlayers').innerHTML = waiting.map(p => 
-                    `<div class="waiting-player">${p}<br><small>已打${playerMatchCount[p]}場</small></div>`
+                    `<div class="waiting-player">
+                        ${p}
+                        ${nextAPlayers.includes(p) ? '<span class="waiting-player-tag">準備上場</span>' : ''}
+                        <br><small>已打${playerMatchCount[p]}場</small>
+                    </div>`
                 ).join('');
             } else {
+                nextAPlayers = [];
                 waitingBoxCard.style.display = 'none';
             }
         }
@@ -802,24 +868,21 @@
             }
             
             // 完全亂數分配（不依出賽次數，只以亂數）
-            // 試50種組合，選擇配對分數最低的（避免重複配對）
-            let bestCourtA = null, bestScore = Infinity;
-            const attempts = 50;
-            
-            for (let attempt = 0; attempt < attempts; attempt++) {
-                const shuffled = [...waitingPlayers].sort(() => Math.random() - 0.5);
-                const courtA = shuffled.slice(0, 4);
-                const scoreA = getPairingScore(courtA);
-                
-                if (scoreA < bestScore) {
-                    bestScore = scoreA;
-                    bestCourtA = courtA;
-                }
+            // 直接使用 nextAPlayers 作為新A場球員
+            if (nextAPlayers.length === 0) {
+                console.log('❌ 準備上場球員為空，無法替補');
+                currentCourtA = [];
+                displayMatch();
+                saveToFirebase();
+                return;
             }
             
-            console.log('🎲 亂數選出新A場球員:', bestCourtA);
-            currentCourtA = bestCourtA;
+            console.log('🎲 使用準備上場球員替補A場:', nextAPlayers);
+            currentCourtA = nextAPlayers;
             recordPairing(currentCourtA);
+            nextAPlayers = []; // 清空已選的下場球員，下次重新抽選
+            localStorage.removeItem('nextAPlayers');
+            localStorage.removeItem('nextAPlayersWaiting');
             
             currentCourtA.forEach(p => playerMatchCount[p]++);
             courtAStarted = true;
@@ -855,24 +918,21 @@
             }
             
             // 完全亂數分配（不依出賽次數，只以亂數）
-            // 試50種組合，選擇配對分數最低的（避免重複配對）
-            let bestCourtB = null, bestScore = Infinity;
-            const attempts = 50;
-            
-            for (let attempt = 0; attempt < attempts; attempt++) {
-                const shuffled = [...waitingPlayers].sort(() => Math.random() - 0.5);
-                const courtB = shuffled.slice(0, 4);
-                const scoreB = getPairingScore(courtB);
-                
-                if (scoreB < bestScore) {
-                    bestScore = scoreB;
-                    bestCourtB = courtB;
-                }
+            // 直接使用 nextAPlayers 作為新B場球員
+            if (nextAPlayers.length === 0) {
+                console.log('❌ 準備上場球員為空，無法替補');
+                currentCourtB = [];
+                displayMatch();
+                saveToFirebase();
+                return;
             }
             
-            console.log('🎲 亂數選出新B場球員:', bestCourtB);
-            currentCourtB = bestCourtB;
+            console.log('🎲 使用準備上場球員替補B場:', nextAPlayers);
+            currentCourtB = nextAPlayers;
             recordPairing(currentCourtB);
+            nextAPlayers = []; // 清空已選的下場球員，下次重新抽選
+            localStorage.removeItem('nextAPlayers');
+            localStorage.removeItem('nextAPlayersWaiting');
             
             currentCourtB.forEach(p => playerMatchCount[p]++);
             courtBStarted = true;
@@ -989,6 +1049,34 @@
             players = players.filter(p => p !== name);
             // 從 playerMatchCount 移除
             delete playerMatchCount[name];
+            
+            // 如果刪除的是準備上場球員，自動替補
+            if (nextAPlayers.includes(name)) {
+                console.log('🗑️ 已刪除準備上場球員:', name);
+                nextAPlayers = [];
+                localStorage.removeItem('nextAPlayers');
+                localStorage.removeItem('nextAPlayersWaiting');
+                // 重新抽選下一場球員
+                const onCourt = [...currentCourtA, ...currentCourtB];
+                const waiting = players.filter(p => !onCourt.includes(p));
+                if (waiting.length >= 4) {
+                    let bestNext = null, bestScore = Infinity;
+                    for (let attempt = 0; attempt < 50; attempt++) {
+                        const shuffled = [...waiting].sort(() => Math.random() - 0.5);
+                        const candidate = shuffled.slice(0, 4);
+                        const score = getPairingScore(candidate);
+                        if (score < bestScore) {
+                            bestScore = score;
+                            bestNext = candidate;
+                        }
+                    }
+                    nextAPlayers = bestNext;
+                    localStorage.setItem('nextAPlayers', JSON.stringify(nextAPlayers));
+                    localStorage.setItem('nextAPlayersWaiting', waiting.length.toString());
+                    console.log('✅ 自動補上新的準備上場球員:', nextAPlayers);
+                }
+            }
+            
             // 更新顯示與同步
             updateDisplay();
             saveToFirebase();
