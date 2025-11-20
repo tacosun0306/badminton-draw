@@ -397,6 +397,7 @@
         let courtBStarted = false; // B場是否已啟用過
         let finishedMatches = 0;
         let deletedPlayers = {}; // 記錄刪除的球員及其上場次數
+        let pairHistory = {}; // 記錄球員配對歷史 {playerA: {playerB: count, playerC: count}}
 
         // 新增球員
         function addPlayer() {
@@ -422,6 +423,7 @@
             
             players.push(name);
             playerMatchCount[name] = 0;
+            pairHistory[name] = {};
             input.value = '';
             input.focus();
             updateDisplay();
@@ -615,33 +617,74 @@
             currentCourtB.forEach(p => playerMatchCount[p]++);
         }
 
-        // 亂數配對
+        // 計算配對多樣性分數
+        function getPairingScore(group) {
+            let score = 0;
+            for (let i = 0; i < group.length; i++) {
+                for (let j = i + 1; j < group.length; j++) {
+                    const p1 = group[i];
+                    const p2 = group[j];
+                    score += (pairHistory[p1]?.[p2] || 0);
+                }
+            }
+            return score;
+        }
+
+        // 亂數配對（配對多樣性演算法，避免重複配對）
         function assignByRandom() {
-            // 按出賽次數排序，優先選擇打較少場的球員
-            const sortedPlayers = [...players].sort((a, b) => 
-                playerMatchCount[a] - playerMatchCount[b]
-            );
-            
-            // 隨機打亂前N名
-            const available = sortedPlayers.slice(0, Math.min(sortedPlayers.length, 8));
-            const shuffled = available.sort(() => Math.random() - 0.5);
-            
-            if (shuffled.length >= 8) {
-                currentCourtA = shuffled.slice(0, 4);
-                currentCourtB = shuffled.slice(4, 8);
-                courtAStarted = true;
-                courtBStarted = true;
-            } else if (shuffled.length >= 4) {
-                currentCourtA = shuffled.slice(0, 4);
-                courtAStarted = true;
-            } else {
+            const available = [...players];
+            if (available.length < 4) {
                 alert('球員人數不足4人，無法開始比賽！');
                 return;
             }
             
+            // 多樣性配對：試多組組合，選擇配對分數最低的組合
+            let bestCourtA = null, bestCourtB = null, bestScore = Infinity;
+            const attempts = Math.min(100, 50); // 嘗試50-100種組合
+            
+            for (let attempt = 0; attempt < attempts; attempt++) {
+                const shuffled = [...available].sort(() => Math.random() - 0.5);
+                const courtA = shuffled.slice(0, 4);
+                const courtB = available.length >= 8 ? shuffled.slice(4, 8) : [];
+                
+                const scoreA = getPairingScore(courtA);
+                const scoreB = courtB.length > 0 ? getPairingScore(courtB) : 0;
+                const totalScore = scoreA + scoreB;
+                
+                if (totalScore < bestScore) {
+                    bestScore = totalScore;
+                    bestCourtA = courtA;
+                    bestCourtB = courtB;
+                }
+            }
+            
+            currentCourtA = bestCourtA;
+            currentCourtB = bestCourtB;
+            courtAStarted = true;
+            courtBStarted = currentCourtB.length > 0;
+            
+            // 記錄配對
+            recordPairing(currentCourtA);
+            recordPairing(currentCourtB);
+            
             // 更新出賽次數
             currentCourtA.forEach(p => playerMatchCount[p]++);
             currentCourtB.forEach(p => playerMatchCount[p]++);
+        }
+        
+        // 記錄配對歷史
+        function recordPairing(court) {
+            if (court.length < 2) return;
+            for (let i = 0; i < court.length; i++) {
+                for (let j = i + 1; j < court.length; j++) {
+                    const p1 = court[i];
+                    const p2 = court[j];
+                    if (!pairHistory[p1]) pairHistory[p1] = {};
+                    if (!pairHistory[p2]) pairHistory[p2] = {};
+                    pairHistory[p1][p2] = (pairHistory[p1][p2] || 0) + 1;
+                    pairHistory[p2][p1] = (pairHistory[p2][p1] || 0) + 1;
+                }
+            }
         }
 
         // 顯示比賽
@@ -758,20 +801,25 @@
                 return;
             }
             
-            // 按上場次數排序等候區球員（次數少的優先）
-            waitingPlayers.sort((a, b) => {
-                const countA = playerMatchCount[a] || 0;
-                const countB = playerMatchCount[b] || 0;
-                if (countA !== countB) return countA - countB;
-                // 次數相同則按原始順序
-                return players.indexOf(a) - players.indexOf(b);
-            });
+            // 完全亂數分配（不依出賽次數，只以亂數）
+            // 試50種組合，選擇配對分數最低的（避免重複配對）
+            let bestCourtA = null, bestScore = Infinity;
+            const attempts = 50;
             
-            console.log('排序後等候區:', waitingPlayers);
+            for (let attempt = 0; attempt < attempts; attempt++) {
+                const shuffled = [...waitingPlayers].sort(() => Math.random() - 0.5);
+                const courtA = shuffled.slice(0, 4);
+                const scoreA = getPairingScore(courtA);
+                
+                if (scoreA < bestScore) {
+                    bestScore = scoreA;
+                    bestCourtA = courtA;
+                }
+            }
             
-            // 選取前4人進入A場（自動從等候區輪替）
-            currentCourtA = waitingPlayers.slice(0, 4);
-            console.log('✅ 新A場球員:', currentCourtA);
+            console.log('🎲 亂數選出新A場球員:', bestCourtA);
+            currentCourtA = bestCourtA;
+            recordPairing(currentCourtA);
             
             currentCourtA.forEach(p => playerMatchCount[p]++);
             courtAStarted = true;
@@ -806,20 +854,25 @@
                 return;
             }
             
-            // 按上場次數排序等候區球員（次數少的優先）
-            waitingPlayers.sort((a, b) => {
-                const countA = playerMatchCount[a] || 0;
-                const countB = playerMatchCount[b] || 0;
-                if (countA !== countB) return countA - countB;
-                // 次數相同則按原始順序
-                return players.indexOf(a) - players.indexOf(b);
-            });
+            // 完全亂數分配（不依出賽次數，只以亂數）
+            // 試50種組合，選擇配對分數最低的（避免重複配對）
+            let bestCourtB = null, bestScore = Infinity;
+            const attempts = 50;
             
-            console.log('排序後等候區:', waitingPlayers);
+            for (let attempt = 0; attempt < attempts; attempt++) {
+                const shuffled = [...waitingPlayers].sort(() => Math.random() - 0.5);
+                const courtB = shuffled.slice(0, 4);
+                const scoreB = getPairingScore(courtB);
+                
+                if (scoreB < bestScore) {
+                    bestScore = scoreB;
+                    bestCourtB = courtB;
+                }
+            }
             
-            // 選取前4人進入B場（自動從等候區輪替）
-            currentCourtB = waitingPlayers.slice(0, 4);
-            console.log('✅ 新B場球員:', currentCourtB);
+            console.log('🎲 亂數選出新B場球員:', bestCourtB);
+            currentCourtB = bestCourtB;
+            recordPairing(currentCourtB);
             
             currentCourtB.forEach(p => playerMatchCount[p]++);
             courtBStarted = true;
