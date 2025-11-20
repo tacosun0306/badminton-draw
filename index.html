@@ -341,13 +341,15 @@
             <div class="card">
                 <h3>👥 已登記球員</h3>
                 <div id="playersList"></div>
+                <!-- 已刪除球員區塊（灰階） -->
+                <div id="deletedPlayersList" style="margin-top:20px;filter:grayscale(1);opacity:0.7;"></div>
             </div>
         </div>
 
         <!-- 重置按鈕 -->
         <div class="reset-button-container">
             <button class="btn-reset-large" onclick="resetGame()">
-                🔄 比賽重置
+                比賽重置
             </button>
         </div>
     </div>
@@ -394,6 +396,7 @@
         let courtAStarted = false; // A場是否已啟用過
         let courtBStarted = false; // B場是否已啟用過
         let finishedMatches = 0;
+        let deletedPlayers = {}; // 記錄刪除的球員及其上場次數
 
         // 新增球員
         function addPlayer() {
@@ -519,13 +522,36 @@
                         <strong style="color: #667eea;">已登記球員 (${players.length}/16)</strong>
                         <div class="players-list" style="margin-top: 10px;">
                             ${players.map((name, idx) => 
-                                `<div class="player-badge">${idx + 1}. ${name}</div>`
+                                `<div class="player-badge" style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                                    <span>${idx + 1}. ${name}</span>
+                                    <button onclick="deletePlayer('${name}')" title="刪除" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">&#10006;</button>
+                                </div>`
                             ).join('')}
                         </div>
                     </div>
                 `;
             } else {
                 playersList.innerHTML = '<div class="empty-state">尚無球員登記</div>';
+            }
+            
+            // 在 updateDisplay 末尾新增：
+            const deletedList = document.getElementById('deletedPlayersList');
+            if (deletedList) {
+                if (Object.keys(deletedPlayers).length > 0) {
+                    deletedList.innerHTML = `<div style='margin-top:10px;'>
+                        <strong style='color:#dc3545;'>已刪除球員</strong>
+                        <div style='display:grid;gap:8px;margin-top:8px;'>
+                            ${Object.entries(deletedPlayers).map(([name, count]) =>
+                                `<div style='background:#f8d7da;padding:8px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;'>
+                                    <span>${name}（已打${count}場）</span>
+                                    <button onclick="restorePlayer('${name}')" style='background:#28a745;color:white;border:none;border-radius:6px;padding:2px 10px;font-size:13px;cursor:pointer;'>恢復</button>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>`;
+                } else {
+                    deletedList.innerHTML = '';
+                }
             }
         }
 
@@ -889,6 +915,43 @@
             if (isFirebaseEnabled) {
                 saveToFirebase();
             }
+        }
+
+        // 刪除球員函式
+        function deletePlayer(name) {
+            // 防呆：刪除後人數不足4人禁止
+            if (players.length <= 4) {
+                alert('球員人數低於4人，無法刪除！');
+                return;
+            }
+            // 防呆：禁止刪除場上正在比賽的球員
+            if (currentCourtA.includes(name) || currentCourtB.includes(name)) {
+                alert('此球員正在比賽，請先結束比賽再刪除！');
+                return;
+            }
+            if (!confirm(`確定要刪除「${name}」嗎？`)) return;
+            // 記錄刪除前的上場次數
+            deletedPlayers[name] = playerMatchCount[name] || 0;
+            // 從 players 移除
+            players = players.filter(p => p !== name);
+            // 從 playerMatchCount 移除
+            delete playerMatchCount[name];
+            // 更新顯示與同步
+            updateDisplay();
+            saveToFirebase();
+        }
+
+        // 新增：恢復球員函式
+        function restorePlayer(name) {
+            if (players.includes(name)) {
+                alert('此球員已在名單中！');
+                return;
+            }
+            players.push(name);
+            playerMatchCount[name] = deletedPlayers[name];
+            delete deletedPlayers[name];
+            updateDisplay();
+            saveToFirebase();
         }
 
         // 頁面載入時初始化
