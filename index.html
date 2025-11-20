@@ -1072,6 +1072,16 @@
             players = players.filter(p => p !== name);
             // 從 playerMatchCount 移除
             delete playerMatchCount[name];
+            // 即時同步整理 nextPlayers 名單
+            if (nextPlayers.includes(name)) {
+                nextPlayers = nextPlayers.filter(p => p !== name);
+                if (nextPlayers.length === 0) {
+                    localStorage.removeItem('nextPlayers');
+                    nextPlayersNeedUpdate = true;
+                } else {
+                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+                }
+            }
             // 更新顯示與同步
             updateDisplay();
             saveToFirebase();
