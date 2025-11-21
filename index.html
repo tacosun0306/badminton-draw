@@ -610,6 +610,13 @@
                     deletedList.innerHTML = '';
                 }
             }
+            
+            // 直接計算已完成場次
+            let finishedCount = 0;
+            // 以每位球員的出賽次數加總，除以每場人數（4人一場）
+            const totalMatchCount = Object.values(playerMatchCount).reduce((a, b) => a + b, 0);
+            finishedCount = Math.floor(totalMatchCount / 4);
+            document.getElementById('finishedMatches').textContent = finishedCount;
         }
 
         // 開始比賽
