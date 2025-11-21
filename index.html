@@ -427,6 +427,9 @@
         let nextPlayers = []; // 下一輪要上場的4位球員
         let nextPlayersNeedUpdate = true; // 是否需要重新計算準備上場球員
 
+        // 新增：記錄每位球員最近一次隊友名單
+        let lastTeammates = {};
+
         // 新增球員
         function addPlayer() {
             const input = document.getElementById('playerNameInput');
@@ -686,7 +689,12 @@
                 for (let j = i + 1; j < group.length; j++) {
                     const p1 = group[i];
                     const p2 = group[j];
-                    score += (pairHistory[p1]?.[p2] || 0);
+                    // 懲罰分：若上次已同組，額外加分
+                    if (lastTeammates[p1] && lastTeammates[p1].includes(p2)) {
+                        score += 100; // 最近同組懲罰分
+                    }
+                    // 原本配對分數
+                    score += (pairHistory[p1]?.[p2] || 0) * 2; // 配對次數越多，懲罰分越高
                 }
             }
             return score;
@@ -747,6 +755,10 @@
                     pairHistory[p2][p1] = (pairHistory[p2][p1] || 0) + 1;
                 }
             }
+            // 記錄最近一次隊友
+            court.forEach(p => {
+                lastTeammates[p] = court.filter(x => x !== p);
+            });
         }
 
         // 顯示比賽
