@@ -462,6 +462,30 @@
             input.disabled = false;
             input.focus();
             clearInputError();
+            // nextPlayers 豐富性：人數小於等於12人時，優先從等候區選2人，再從剛結束比賽4人隨機補2人
+            if (players.length <= 12) {
+                // 等候區（未在場上）
+                const onCourt = [...currentCourtA, ...currentCourtB];
+                const waiting = players.filter(p => !onCourt.includes(p));
+                let selected = waiting.slice(0, 2);
+                // 場上球員 pool（排除已選）
+                const finishedPlayers = onCourt.filter(p => !selected.includes(p));
+                const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
+                selected = [...selected, ...shuffled.slice(0, 2)];
+                nextPlayers = selected;
+            } else {
+                // 12人以上維持原本邏輯：先選已打0場，否則亂數
+                const zeroMatchPlayers = players.filter(p => playerMatchCount[p] === 0);
+                if (zeroMatchPlayers.length >= 4) {
+                    nextPlayers = zeroMatchPlayers.slice(0, 4);
+                } else {
+                    // 不足4人則亂數選
+                    const pool = players.filter(p => !zeroMatchPlayers.includes(p));
+                    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+                    nextPlayers = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
+                }
+            }
+            nextPlayersNeedUpdate = false;
             updateDisplay();
             saveToFirebase();
             autoStartIfReady();
@@ -878,13 +902,26 @@
                 }
             }
             
-            // 若準備上場球員不足4人，從結束比賽球員中補充
-            if (nextPlayers.length < 4 && nextPlayers.length > 0) {
-                const finishedPlayers = onCourt.filter(p => !nextPlayers.includes(p));
-                const needed = 4 - nextPlayers.length;
-                const shuffledFinished = [...finishedPlayers].sort(() => Math.random() - 0.5);
-                const replacements = shuffledFinished.slice(0, needed);
-                nextPlayers = [...nextPlayers, ...replacements];
+            // nextPlayers 豐富性：人數小於等於12人時，優先從等候區選2人，再從剛結束比賽4人隨機補2人
+            if (players.length <= 12) {
+                const onCourt = [...currentCourtA, ...currentCourtB];
+                const waiting = players.filter(p => !onCourt.includes(p));
+                let selected = waiting.slice(0, 2);
+                const finishedPlayers = onCourt.filter(p => !selected.includes(p));
+                const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
+                selected = [...selected, ...shuffled.slice(0, 2)];
+                nextPlayers = selected;
+                localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+                console.log('補充準備上場球員:', nextPlayers);
+            } else if (nextPlayers.length < 4 && nextPlayers.length > 0) {
+                const zeroMatchPlayers = players.filter(p => playerMatchCount[p] === 0);
+                if (zeroMatchPlayers.length >= 4) {
+                    nextPlayers = zeroMatchPlayers.slice(0, 4);
+                } else {
+                    const pool = players.filter(p => !zeroMatchPlayers.includes(p));
+                    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+                    nextPlayers = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
+                }
                 localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
                 console.log('補充準備上場球員:', nextPlayers);
             }
