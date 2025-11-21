@@ -452,11 +452,7 @@
                 input.focus();
                 return;
             }
-            // 人數上限
-            if (players.length >= 16) {
-                showInputError('已達最多16人，無法再登記！');
-                return;
-            }
+            // 移除人數上限，允許無限制登記
             // 禁止 race condition：輸入框暫時 disabled
             input.disabled = true;
             players.push(name);
