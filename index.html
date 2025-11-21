@@ -346,11 +346,11 @@
                 <h3>📊 狀態</h3>
                 <div class="status-box">
                     <div class="status-item">
-                        <span>已登記：</span>
+                        <span>目前已登記球員：</span>
                         <strong id="totalPlayers">0</strong>
                     </div>
                     <div class="status-item">
-                        <span>已完成：</span>
+                        <span>目前已完成場次：</span>
                         <strong id="finishedMatches">0</strong>
                     </div>
                     <div class="status-item">
@@ -430,35 +430,62 @@
         // 新增球員
         function addPlayer() {
             const input = document.getElementById('playerNameInput');
-            const name = input.value.trim();
-            
-            if (!name) {
-                alert('請輸入姓名！');
+            let name = input.value.trim();
+            // 名字格式化：首字大寫、其餘小寫
+            name = name.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
+            if (name.length > 0) {
+                name = name[0].toUpperCase() + name.slice(1);
+            }
+            // 長度限制
+            if (!name || name.length < 2 || name.length > 8) {
+                showInputError('請輸入2~8字的有效姓名（禁止特殊字元）');
+                input.focus();
                 return;
             }
-            
+            // 防重複
             if (players.includes(name)) {
-                alert('此姓名已登記！');
+                showInputError('此姓名已登記！');
                 input.value = '';
                 input.focus();
                 return;
             }
-            
+            // 人數上限
             if (players.length >= 16) {
-                alert('已達最多16人，無法再登記！');
+                showInputError('已達最多16人，無法再登記！');
                 return;
             }
-            
+            // 禁止 race condition：輸入框暫時 disabled
+            input.disabled = true;
             players.push(name);
             playerMatchCount[name] = 0;
             pairHistory[name] = {};
             input.value = '';
+            input.disabled = false;
             input.focus();
+            clearInputError();
             updateDisplay();
             saveToFirebase();
-            
-            // 檢查是否需要自動開始比賽
             autoStartIfReady();
+        }
+
+        // 顯示錯誤訊息
+        function showInputError(msg) {
+            let err = document.getElementById('inputErrorMsg');
+            if (!err) {
+                err = document.createElement('div');
+                err.id = 'inputErrorMsg';
+                err.style.color = '#dc3545';
+                err.style.fontWeight = 'bold';
+                err.style.marginTop = '6px';
+                err.style.textAlign = 'center';
+                input.parentNode.appendChild(err);
+            }
+            err.textContent = msg;
+        }
+        // 清除錯誤訊息
+        function clearInputError() {
+            const err = document.getElementById('inputErrorMsg');
+            if (err) err.remove();
         }
 
         // 自動開始比賽（滿4人或8人）
@@ -739,7 +766,7 @@
                             }
                         </div>
                         ${!courtAFinished ? 
-                            '<button class="btn btn-success" onclick="finishCourt(\'A\')" style="width: 100%;">比賽結束（自動替補）</button>' : 
+                            '<button class="btn btn-danger" onclick="finishCourt(\'A\')" style="width: 100%;">比賽結束（自動替補）</button>' : 
                             '<div style="text-align: center; color: #ff9800; font-weight: bold; padding: 10px; background: #fff3e0; border-radius: 5px;">⏳ 等待中（需要4名球員）</div>'
                         }
                     </div>
@@ -760,7 +787,7 @@
                             }
                         </div>
                         ${!courtBFinished ? 
-                            '<button class="btn btn-success" onclick="finishCourt(\'B\')" style="width: 100%;">比賽結束（自動替補）</button>' : 
+                            '<button class="btn btn-danger" onclick="finishCourt(\'B\')" style="width: 100%;">比賽結束（自動替補）</button>' : 
                             '<div style="text-align: center; color: #ff9800; font-weight: bold; padding: 10px; background: #fff3e0; border-radius: 5px;">⏳ 等待中（需要4名球員）</div>'
                         }
                     </div>
@@ -866,12 +893,14 @@
                 courtAFinished = true;
                 finishedMatches++;
                 document.getElementById('finishedMatches').textContent = finishedMatches;
+                localStorage.setItem('finishedMatches', finishedMatches);
                 // A場結束，自動替補(會自動調用saveToFirebase)
                 autoReplaceCourtA();
             } else if (court === 'B') {
                 courtBFinished = true;
                 finishedMatches++;
                 document.getElementById('finishedMatches').textContent = finishedMatches;
+                localStorage.setItem('finishedMatches', finishedMatches);
                 // B場結束，自動替補(會自動調用saveToFirebase)
                 autoReplaceCourtB();
             }
@@ -1076,7 +1105,6 @@
             if (!confirm(`確定要刪除「${name}」嗎？`)) return;
             // 記錄刪除前的上場次數
             deletedPlayers[name] = playerMatchCount[name] || 0;
-            localStorage.setItem('deletedPlayers', JSON.stringify(deletedPlayers));
             // 從 players 移除
             players = players.filter(p => p !== name);
             // 從 playerMatchCount 移除
@@ -1096,7 +1124,7 @@
             saveToFirebase();
         }
 
-        // 恢復球員函式
+        // 新增：恢復球員函式
         function restorePlayer(name) {
             if (players.includes(name)) {
                 alert('此球員已在名單中！');
@@ -1105,24 +1133,17 @@
             players.push(name);
             playerMatchCount[name] = deletedPlayers[name];
             delete deletedPlayers[name];
-            localStorage.setItem('deletedPlayers', JSON.stringify(deletedPlayers));
             updateDisplay();
             saveToFirebase();
         }
 
         // 頁面載入時初始化
         window.onload = function() {
-            // 恢復 deletedPlayers
-            const storedDeleted = localStorage.getItem('deletedPlayers');
-            if (storedDeleted) {
-                try {
-                    const restored = JSON.parse(storedDeleted);
-                    if (restored && typeof restored === 'object') {
-                        deletedPlayers = restored;
-                    }
-                } catch (e) {
-                    console.warn('已刪除球員名單恢復失敗:', e);
-                }
+            // 讀取 finishedMatches
+            const storedFinished = localStorage.getItem('finishedMatches');
+            if (storedFinished) {
+                finishedMatches = parseInt(storedFinished, 10) || 0;
+                document.getElementById('finishedMatches').textContent = finishedMatches;
             }
             updateDisplay();
         };
