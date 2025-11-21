@@ -902,28 +902,43 @@
                 }
             }
             
-            // nextPlayers 豐富性：人數小於等於12人時，優先從等候區選2人，再從剛結束比賽4人隨機補2人
-            if (players.length <= 12) {
-                const onCourt = [...currentCourtA, ...currentCourtB];
-                const waiting = players.filter(p => !onCourt.includes(p));
-                let selected = waiting.slice(0, 2);
-                const finishedPlayers = onCourt.filter(p => !selected.includes(p));
-                const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
-                selected = [...selected, ...shuffled.slice(0, 2)];
-                nextPlayers = selected;
-                localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                console.log('補充準備上場球員:', nextPlayers);
-            } else if (nextPlayers.length < 4 && nextPlayers.length > 0) {
-                const zeroMatchPlayers = players.filter(p => playerMatchCount[p] === 0);
-                if (zeroMatchPlayers.length >= 4) {
-                    nextPlayers = zeroMatchPlayers.slice(0, 4);
-                } else {
-                    const pool = players.filter(p => !zeroMatchPlayers.includes(p));
-                    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                    nextPlayers = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
+            // nextPlayersNeedUpdate 為 false 時，僅使用現有 nextPlayers，不重算分組
+            if (!nextPlayersNeedUpdate) {
+                // nextPlayers 已由手動替換或分組規則產生，直接使用
+                // 若 localStorage 有 nextPlayers，優先使用
+                const stored = localStorage.getItem('nextPlayers');
+                if (stored) {
+                    try {
+                        const restored = JSON.parse(stored);
+                        if (restored.every(p => players.includes(p))) {
+                            nextPlayers = restored;
+                        }
+                    } catch (e) {}
                 }
-                localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                console.log('補充準備上場球員:', nextPlayers);
+            } else {
+                // 只有 nextPlayersNeedUpdate 為 true 時才重算分組
+                if (players.length <= 12) {
+                    const onCourt = [...currentCourtA, ...currentCourtB];
+                    const waiting = players.filter(p => !onCourt.includes(p));
+                    let selected = waiting.slice(0, 2);
+                    const finishedPlayers = onCourt.filter(p => !selected.includes(p));
+                    const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
+                    selected = [...selected, ...shuffled.slice(0, 2)];
+                    nextPlayers = selected;
+                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+                    console.log('補充準備上場球員:', nextPlayers);
+                } else if (nextPlayers.length < 4 && nextPlayers.length > 0) {
+                    const zeroMatchPlayers = players.filter(p => playerMatchCount[p] === 0);
+                    if (zeroMatchPlayers.length >= 4) {
+                        nextPlayers = zeroMatchPlayers.slice(0, 4);
+                    } else {
+                        const pool = players.filter(p => !zeroMatchPlayers.includes(p));
+                        const shuffled = [...pool].sort(() => Math.random() - 0.5);
+                        nextPlayers = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
+                    }
+                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+                    console.log('補充準備上場球員:', nextPlayers);
+                }
             }
             
             // 更新等候區
@@ -1228,26 +1243,27 @@ function closeReplaceDialog() {
 function confirmReplaceNextPlayer(oldPlayer) {
     const form = document.getElementById('replaceForm');
     if (!form) return;
-    const selected = form.querySelector('input[name="replaceCandidate"]:checked');
-    if (!selected) {
+    const selectedRadio = form.querySelector('input[name="replaceCandidate"]:checked');
+    if (!selectedRadio) {
         alert('請選擇要替換進來的球員');
         return;
     }
-    const newPlayer = selected.value;
+    const newPlayer = selectedRadio.value;
     const idx = nextPlayers.indexOf(oldPlayer);
     if (idx === -1) {
         alert('原球員不在準備上場名單');
         closeReplaceDialog();
         return;
     }
-    // 替換後，確保 nextPlayers 內容唯一且正確
-    nextPlayers[idx] = newPlayer;
-    nextPlayers = Array.from(new Set(nextPlayers));
+    // 手動替換：新球員插入最前面，舊球員移除，其他順序不變
+    let newNextPlayers = nextPlayers.filter(p => p !== oldPlayer && p !== newPlayer);
+    newNextPlayers.unshift(newPlayer);
+    nextPlayers = newNextPlayers.slice(0, 4);
     localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
     nextPlayersNeedUpdate = false;
     closeReplaceDialog();
     saveToFirebase(); // 新增：同步到 Firebase
-    location.reload();
+    updateDisplay(); // 即時更新 UI
 }
 
         // 頁面載入時初始化
