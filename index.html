@@ -271,6 +271,10 @@
             transform: translateY(0);
         }
 
+        .display-grid {
+            display: grid; grid-template-columns: 2fr 1fr; gap: 20px;
+        }
+
         /* 響應式設計 */
         @media (max-width: 768px) {
             .btn-reset-large {
@@ -281,6 +285,10 @@
 
             .reset-button-container {
                 padding: 15px;
+            }
+
+            .display-grid {
+                grid-template-columns: 1fr; 
             }
         }
 
@@ -316,7 +324,7 @@
 
         <!-- 當前比賽和等候區 -->
         <div id="currentMatch" style="display: none;">
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+            <div class="display-grid">
                 <!-- 當前比賽 -->
                 <div class="card">
                     <h3>🎯 當前比賽</h3>
@@ -1068,6 +1076,7 @@
             if (!confirm(`確定要刪除「${name}」嗎？`)) return;
             // 記錄刪除前的上場次數
             deletedPlayers[name] = playerMatchCount[name] || 0;
+            localStorage.setItem('deletedPlayers', JSON.stringify(deletedPlayers));
             // 從 players 移除
             players = players.filter(p => p !== name);
             // 從 playerMatchCount 移除
@@ -1087,7 +1096,7 @@
             saveToFirebase();
         }
 
-        // 新增：恢復球員函式
+        // 恢復球員函式
         function restorePlayer(name) {
             if (players.includes(name)) {
                 alert('此球員已在名單中！');
@@ -1096,12 +1105,25 @@
             players.push(name);
             playerMatchCount[name] = deletedPlayers[name];
             delete deletedPlayers[name];
+            localStorage.setItem('deletedPlayers', JSON.stringify(deletedPlayers));
             updateDisplay();
             saveToFirebase();
         }
 
         // 頁面載入時初始化
         window.onload = function() {
+            // 恢復 deletedPlayers
+            const storedDeleted = localStorage.getItem('deletedPlayers');
+            if (storedDeleted) {
+                try {
+                    const restored = JSON.parse(storedDeleted);
+                    if (restored && typeof restored === 'object') {
+                        deletedPlayers = restored;
+                    }
+                } catch (e) {
+                    console.warn('已刪除球員名單恢復失敗:', e);
+                }
+            }
             updateDisplay();
         };
     </script>
