@@ -372,6 +372,24 @@
             </div>
         </div>
 
+        <!-- 配對統計區塊 -->
+        <div class="card" id="pairingStats" style="display:none;">
+            <h3>📊 配對統計</h3>
+            <div style="display:grid;gap:10px;">
+                <div style="background:#e7f3ff;padding:10px;border-radius:6px;">
+                    <strong>出場次數統計：</strong>
+                    <div id="matchCountStats" style="margin-top:8px;font-size:14px;"></div>
+                </div>
+                <div style="background:#fff3cd;padding:10px;border-radius:6px;">
+                    <strong>配對多樣性分析：</strong>
+                    <div id="pairingDiversityStats" style="margin-top:8px;font-size:14px;"></div>
+                </div>
+                <button class="btn btn-primary" onclick="runAutoTest()" style="width:100%;margin-top:10px;">
+                    🔬 自動測試配對演算法
+                </button>
+            </div>
+        </div>
+
         <!-- 重置按鈕 -->
         <div class="reset-button-container">
             <button class="btn-reset-large" onclick="resetGame()">
@@ -441,13 +459,13 @@
             }
             // 長度限制
             if (!name || name.length < 2 || name.length > 8) {
-                showInputError('請輸入2~8字的有效姓名（禁止特殊字元）');
+                alert('請輸入2~8字的有效姓名（禁止特殊字元）');
                 input.focus();
                 return;
             }
             // 防重複
             if (players.includes(name)) {
-                showInputError('此姓名已登記！');
+                alert('此姓名已登記！');
                 input.value = '';
                 input.focus();
                 return;
@@ -493,17 +511,7 @@
 
         // 顯示錯誤訊息
         function showInputError(msg) {
-            let err = document.getElementById('inputErrorMsg');
-            if (!err) {
-                err = document.createElement('div');
-                err.id = 'inputErrorMsg';
-                err.style.color = '#dc3545';
-                err.style.fontWeight = 'bold';
-                err.style.marginTop = '6px';
-                err.style.textAlign = 'center';
-                input.parentNode.appendChild(err);
-            }
-            err.textContent = msg;
+            alert(msg);
         }
         // 清除錯誤訊息
         function clearInputError() {
@@ -640,6 +648,9 @@
             const totalMatchCount = Object.values(playerMatchCount).reduce((a, b) => a + b, 0);
             finishedCount = Math.floor(totalMatchCount / 4);
             document.getElementById('finishedMatches').textContent = finishedCount;
+            
+            // 更新配對統計
+            updatePairingStats();
         }
 
         // 開始比賽
@@ -904,8 +915,6 @@
             
             // nextPlayersNeedUpdate 為 false 時，僅使用現有 nextPlayers，不重算分組
             if (!nextPlayersNeedUpdate) {
-                // nextPlayers 已由手動替換或分組規則產生，直接使用
-                // 若 localStorage 有 nextPlayers，優先使用
                 const stored = localStorage.getItem('nextPlayers');
                 if (stored) {
                     try {
@@ -916,10 +925,30 @@
                     } catch (e) {}
                 }
             } else {
-                // 只有 nextPlayersNeedUpdate 為 true 時才重算分組
-                if (players.length <= 12) {
-                    const onCourt = [...currentCourtA, ...currentCourtB];
-                    const waiting = players.filter(p => !onCourt.includes(p));
+                const onCourt = [...currentCourtA, ...currentCourtB];
+                const waiting = players.filter(p => !onCourt.includes(p));
+                if (waiting.length <= 4) {
+                    // 等候區人數 ≤4，前2人等候區已打場次最低者，剩下2人場上球員隨機選取
+                    let minCount = Infinity;
+                    waiting.forEach(p => {
+                        if ((playerMatchCount[p]||0) < minCount) minCount = playerMatchCount[p]||0;
+                    });
+                    const minPlayers = waiting.filter(p => (playerMatchCount[p]||0) === minCount);
+                    let selected = [];
+                    if (minPlayers.length > 2) {
+                        selected = [...minPlayers].sort(() => Math.random() - 0.5).slice(0, 2);
+                    } else {
+                        selected = minPlayers.slice(0, 2);
+                    }
+                    // 剩下2人從場上球員 pool 隨機選取（排除已選的等候區球員）
+                    const finishedPlayers = onCourt.filter(p => !selected.includes(p));
+                    const shuffledFinished = [...finishedPlayers].sort(() => Math.random() - 0.5);
+                    selected = [...selected, ...shuffledFinished.slice(0, 2)];
+                    nextPlayers = selected;
+                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+                    console.log('補充準備上場球員:', nextPlayers);
+                } else if (players.length <= 12) {
+                    // 原本規則
                     let selected = waiting.slice(0, 2);
                     const finishedPlayers = onCourt.filter(p => !selected.includes(p));
                     const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
@@ -975,96 +1004,42 @@
         
         // 自動替補A場
         function autoReplaceCourtA() {
-            console.log('🔄 A場自動替補開始');
-            console.log('準備上場球員:', nextPlayers);
-            
-            // 優先使用準備上場球員（排除正在B場比賽的人）
-            const playingB = courtBFinished || currentCourtB.length === 0 ? [] : currentCourtB;
-            let toPlayA = nextPlayers.filter(p => !playingB.includes(p));
-            
-            // 若準備上場球員不足4人，從剛結束的A場補充（排除正在B場比賽的人）
-            if (toPlayA.length < 4 && currentCourtA.length > 0) {
-                const needed = 4 - toPlayA.length;
-                const availableFromA = currentCourtA.filter(p => !toPlayA.includes(p) && !playingB.includes(p));
-                const shuffledA = [...availableFromA].sort(() => Math.random() - 0.5);
-                const supplement = shuffledA.slice(0, needed);
-                toPlayA = [...toPlayA, ...supplement];
-                console.log('從A場補充:', supplement);
-            }
-            
-            // 若仍不足4人，檢查是否可以進行比賽
-            if (toPlayA.length < 4) {
-                console.log('❌ 可上場球員不足4人，保持A場已結束狀態');
+            // 只依 nextPlayers 分組規則
+            if (!nextPlayers || nextPlayers.length < 4) {
                 currentCourtA = [];
                 displayMatch();
                 saveToFirebase();
                 return;
             }
-            
-            // 從toPlayA中隨機選4人
-            const selected = [...toPlayA].sort(() => Math.random() - 0.5).slice(0, 4);
-            
-            console.log('🎲 A場上場球員:', selected);
-            currentCourtA = selected;
+            currentCourtA = nextPlayers.slice(0, 4);
             recordPairing(currentCourtA);
-            
-            // 清空 localStorage 中的準備上場球員（因為已經上場了）
             localStorage.removeItem('nextPlayers');
             nextPlayers = [];
-            nextPlayersNeedUpdate = true; // 標記需要重新計算下一輪球員
-            
+            nextPlayersNeedUpdate = true;
             currentCourtA.forEach(p => playerMatchCount[p]++);
             courtAStarted = true;
             courtAFinished = false;
-            
             displayMatch();
             saveToFirebase();
         }
         
         // 自動替補B場
         function autoReplaceCourtB() {
-            console.log('🔄 B場自動替補開始');
-            console.log('準備上場球員:', nextPlayers);
-            
-            // 優先使用準備上場球員（排除正在A場比賽的人）
-            const playingA = courtAFinished || currentCourtA.length === 0 ? [] : currentCourtA;
-            let toPlayB = nextPlayers.filter(p => !playingA.includes(p));
-            
-            // 若準備上場球員不足4人，從剛結束的B場補充（排除正在A場比賽的人）
-            if (toPlayB.length < 4 && currentCourtB.length > 0) {
-                const needed = 4 - toPlayB.length;
-                const availableFromB = currentCourtB.filter(p => !toPlayB.includes(p) && !playingA.includes(p));
-                const shuffledB = [...availableFromB].sort(() => Math.random() - 0.5);
-                const supplement = shuffledB.slice(0, needed);
-                toPlayB = [...toPlayB, ...supplement];
-                console.log('從B場補充:', supplement);
-            }
-            
-            // 若仍不足4人，檢查是否可以進行比賽
-            if (toPlayB.length < 4) {
-                console.log('❌ 可上場球員不足4人，保持B場已結束狀態');
+            // 只依 nextPlayers 分組規則
+            if (!nextPlayers || nextPlayers.length < 4) {
                 currentCourtB = [];
                 displayMatch();
                 saveToFirebase();
                 return;
             }
-            
-            // 從toPlayB中隨機選4人
-            const selected = [...toPlayB].sort(() => Math.random() - 0.5).slice(0, 4);
-            
-            console.log('🎲 B場上場球員:', selected);
-            currentCourtB = selected;
+            currentCourtB = nextPlayers.slice(0, 4);
             recordPairing(currentCourtB);
-            
-            // 清空 localStorage 中的準備上場球員（因為已經上場了）
             localStorage.removeItem('nextPlayers');
             nextPlayers = [];
-            nextPlayersNeedUpdate = true; // 標記需要重新計算下一輪球員
-            
+            nextPlayersNeedUpdate = true;
             currentCourtB.forEach(p => playerMatchCount[p]++);
             courtBStarted = true;
             courtBFinished = false;
-            
             displayMatch();
             saveToFirebase();
         }
@@ -1266,6 +1241,89 @@ function confirmReplaceNextPlayer(oldPlayer) {
     updateDisplay(); // 即時更新 UI
 }
 
+// 更新配對統計顯示
+function updatePairingStats() {
+    const statsCard = document.getElementById('pairingStats');
+    if (players.length === 0) {
+        statsCard.style.display = 'none';
+        return;
+    }
+    statsCard.style.display = 'block';
+    
+    // 出場次數統計
+    const matchCountDiv = document.getElementById('matchCountStats');
+    const counts = Object.entries(playerMatchCount).sort((a, b) => b[1] - a[1]);
+    matchCountDiv.innerHTML = counts.map(([name, count]) => 
+        `<div>${name}: ${count}場</div>`
+    ).join('');
+    
+    // 配對多樣性分析
+    const diversityDiv = document.getElementById('pairingDiversityStats');
+    let totalPairs = 0;
+    let uniquePairs = 0;
+    let maxPairCount = 0;
+    Object.values(pairHistory).forEach(pairs => {
+        Object.values(pairs).forEach(count => {
+            totalPairs += count;
+            uniquePairs++;
+            if (count > maxPairCount) maxPairCount = count;
+        });
+    });
+    diversityDiv.innerHTML = `
+        <div>總配對次數: ${totalPairs / 2}</div>
+        <div>不同配對組合: ${uniquePairs / 2}</div>
+        <div>最高重複配對: ${maxPairCount}次</div>
+    `;
+}
+
+// 自動測試配對演算法
+function runAutoTest() {
+    if (players.length < 8) {
+        alert('自動測試需至少8位球員，正在自動新增測試球員...');
+        const testNames = ['王小明', '李小華', '張大偉', '陳小玲', '林志明', '黃美麗', '吳大同', '劉小芬', '蔡志強', '鄭小雯'];
+        for (let i = 0; i < 10; i++) {
+            if (!players.includes(testNames[i])) {
+                players.push(testNames[i]);
+                playerMatchCount[testNames[i]] = 0;
+                pairHistory[testNames[i]] = {};
+            }
+        }
+        updateDisplay();
+    }
+    
+    alert('開始自動測試：將進行10場比賽，觀察配對多樣性...');
+    
+    // 模擬10場比賽
+    let testRounds = 0;
+    const testInterval = setInterval(() => {
+        if (testRounds >= 10) {
+            clearInterval(testInterval);
+            updatePairingStats();
+            alert('自動測試完成！請查看配對統計區塊。');
+            return;
+        }
+        
+        // 模擬比賽結束並替補
+        if (currentCourtA.length === 0) {
+            assignByRandom();
+            currentCourtA.forEach(p => playerMatchCount[p]++);
+            currentCourtB.forEach(p => playerMatchCount[p]++);
+            recordPairing(currentCourtA);
+            recordPairing(currentCourtB);
+        } else {
+            courtAFinished = true;
+            courtBFinished = true;
+            nextPlayersNeedUpdate = true;
+            displayMatch();
+            setTimeout(() => {
+                autoReplaceCourtA();
+                autoReplaceCourtB();
+                testRounds++;
+            }, 100);
+        }
+    }, 500);
+}
+
         // 頁面載入時初始化
         window.onload = function() {
             // 讀取 finishedMatches
@@ -1276,6 +1334,7 @@ function confirmReplaceNextPlayer(oldPlayer) {
             }
             // deletedPlayers 只走 Firebase，不再讀 localStorage
             updateDisplay();
+            updatePairingStats();
         };
     </script>
 </body>
