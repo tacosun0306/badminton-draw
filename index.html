@@ -880,7 +880,7 @@
                 waitingBoxCard.style.display = 'block';
                 document.getElementById('waitingPlayers').innerHTML = waiting.map(p => {
                     const isNext = nextPlayers.includes(p);
-                    return `<div class="waiting-player">${p}${isNext ? ' <span class="waiting-player-tag">準備上場</span>' : ''}<br><small>已打${playerMatchCount[p]}場</small></div>`;
+                    return `<div class="waiting-player">${p}${isNext ? ` <span class="waiting-player-tag" style="cursor:pointer;" onclick="showReplaceDialog('${p}')">準備上場</span>` : ''}<br><small>已打${playerMatchCount[p]}場</small></div>`;
                 }).join('');
             } else {
                 waitingBoxCard.style.display = 'none';
@@ -1136,6 +1136,68 @@
             updateDisplay();
             saveToFirebase();
         }
+
+        // 彈出替換選單
+function showReplaceDialog(oldPlayer) {
+    // 取得可替換名單（等候區且不在 nextPlayers）
+    const onCourt = [...currentCourtA, ...currentCourtB];
+    const waiting = players.filter(p => !onCourt.includes(p));
+    const candidates = waiting.filter(p => !nextPlayers.includes(p));
+    if (candidates.length === 0) {
+        alert('目前沒有可替換的球員');
+        return;
+    }
+    // 建立選單（radio + 確定按鈕）
+    const selectHtml = `<div id='replaceDialogBg' style='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);z-index:9999;' onclick='closeReplaceDialog()'></div>
+        <div id='replaceDialog' style='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:30px 24px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);z-index:10000;'>
+            <div style='font-weight:bold;font-size:18px;margin-bottom:12px;'>替換「${oldPlayer}」</div>
+            <div style='margin-bottom:16px;'>選擇要替換進來的球員：</div>
+            <form id='replaceForm'>
+                <div style='display:grid;gap:10px;margin-bottom:18px;'>
+                    ${candidates.map(p => `<label style='display:flex;align-items:center;gap:8px;'><input type='radio' name='replaceCandidate' value='${p}'><span>${p}</span></label>`).join('')}
+                </div>
+                <button type='button' onclick="confirmReplaceNextPlayer('${oldPlayer}')" style='padding:10px 28px;border-radius:8px;border:none;background:#28a745;color:white;font-size:16px;cursor:pointer;'>確定</button>
+                <button type='button' onclick='closeReplaceDialog()' style='margin-left:12px;padding:8px 24px;border-radius:8px;border:none;background:#dc3545;color:white;font-size:15px;cursor:pointer;'>取消</button>
+            </form>
+        </div>`;
+    const dialog = document.createElement('div');
+    dialog.id = 'replaceDialogContainer';
+    dialog.innerHTML = selectHtml;
+    document.body.appendChild(dialog);
+}
+
+function closeReplaceDialog() {
+    const dialog = document.getElementById('replaceDialogContainer');
+    if (dialog) dialog.remove();
+}
+
+// 確認替換（點擊確定才執行）
+function confirmReplaceNextPlayer(oldPlayer) {
+    const form = document.getElementById('replaceForm');
+    if (!form) return;
+    const selected = form.querySelector('input[name="replaceCandidate"]:checked');
+    if (!selected) {
+        alert('請選擇要替換進來的球員');
+        return;
+    }
+    const newPlayer = selected.value;
+    const idx = nextPlayers.indexOf(oldPlayer);
+    if (idx === -1) {
+        alert('原球員不在準備上場名單');
+        closeReplaceDialog();
+        return;
+    }
+    // 替換後，確保 nextPlayers 內容唯一且正確
+    nextPlayers[idx] = newPlayer;
+    // 防止 nextPlayers 有重複球員
+    nextPlayers = Array.from(new Set(nextPlayers));
+    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+    // 強制標記 nextPlayersNeedUpdate = false，避免 displayMatch 內部覆蓋
+    nextPlayersNeedUpdate = false;
+    closeReplaceDialog();
+    // 強制重整頁面，確保標籤即時顯示
+    location.reload();
+}
 
         // 頁面載入時初始化
         window.onload = function() {
