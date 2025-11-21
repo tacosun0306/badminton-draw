@@ -1038,7 +1038,7 @@
                     courtAStarted = data.courtAStarted || false;
                     courtBStarted = data.courtBStarted || false;
                     finishedMatches = data.finishedMatches || 0;
-                    
+                    nextPlayers = data.nextPlayers || [];
                     updateDisplay();
                     
                     // 如果有球場正在進行，立即顯示
@@ -1056,13 +1056,12 @@
             });
         }
         
-        // 儲存到 Firebase
+        // 儲存到 Firebase（nextPlayers 也同步）
         function saveToFirebase() {
             if (!isFirebaseEnabled) {
                 console.log('本地模式：資料已更新');
                 return;
             }
-            
             const gameState = {
                 players,
                 playerMatchCount,
@@ -1074,9 +1073,9 @@
                 courtAStarted,
                 courtBStarted,
                 finishedMatches,
+                nextPlayers, // 新增 nextPlayers
                 lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
             };
-            
             db.collection('badminton').doc('gameState').set(gameState)
                 .then(() => console.log('💾 資料已儲存'))
                 .catch(error => console.error('儲存失敗:', error));
@@ -1208,13 +1207,11 @@ function confirmReplaceNextPlayer(oldPlayer) {
     }
     // 替換後，確保 nextPlayers 內容唯一且正確
     nextPlayers[idx] = newPlayer;
-    // 防止 nextPlayers 有重複球員
     nextPlayers = Array.from(new Set(nextPlayers));
     localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-    // 強制標記 nextPlayersNeedUpdate = false，避免 displayMatch 內部覆蓋
     nextPlayersNeedUpdate = false;
     closeReplaceDialog();
-    // 強制重整頁面，確保標籤即時顯示
+    saveToFirebase(); // 新增：同步到 Firebase
     location.reload();
 }
 
