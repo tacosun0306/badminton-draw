@@ -1039,6 +1039,7 @@
                     courtBStarted = data.courtBStarted || false;
                     finishedMatches = data.finishedMatches || 0;
                     nextPlayers = data.nextPlayers || [];
+                    deletedPlayers = data.deletedPlayers || {};
                     updateDisplay();
                     
                     // 如果有球場正在進行，立即顯示
@@ -1073,7 +1074,8 @@
                 courtAStarted,
                 courtBStarted,
                 finishedMatches,
-                nextPlayers, // 新增 nextPlayers
+                nextPlayers,
+                deletedPlayers, // 新增 deletedPlayers
                 lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
             };
             db.collection('badminton').doc('gameState').set(gameState)
@@ -1097,12 +1099,12 @@
             courtAStarted = false;
             courtBStarted = false;
             finishedMatches = 0;
-            
+            nextPlayers = [];
+            nextPlayersNeedUpdate = true;
+            deletedPlayers = {};
             document.getElementById('currentMatch').style.display = 'none';
             document.getElementById('finishedMatches').textContent = '0';
-            
             updateDisplay();
-            
             if (isFirebaseEnabled) {
                 saveToFirebase();
             }
@@ -1223,6 +1225,7 @@ function confirmReplaceNextPlayer(oldPlayer) {
                 finishedMatches = parseInt(storedFinished, 10) || 0;
                 document.getElementById('finishedMatches').textContent = finishedMatches;
             }
+            // deletedPlayers 只走 Firebase，不再讀 localStorage
             updateDisplay();
         };
     </script>
