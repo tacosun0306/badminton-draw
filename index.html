@@ -448,30 +448,79 @@
         // 新增：記錄每位球員最近一次隊友名單
         let lastTeammates = {};
 
+        // nextPlayers 產生邏輯統一
+        function getNextPlayers() {
+            const onCourt = [...currentCourtA, ...currentCourtB];
+            const waiting = players.filter(p => !onCourt.includes(p));
+            
+            if (waiting.length <= 4 && waiting.length > 0) {
+                // 等候區≤4人：從等候區選（已打場次最少）+ 從剛結束比賽球場補足
+                // 先找出等候區已打場次最少的球員
+                let minCount = Math.min(...waiting.map(p => playerMatchCount[p] || 0));
+                let minPlayers = waiting.filter(p => (playerMatchCount[p] || 0) === minCount);
+                
+                // 從已打場次最少的球員中選人（最多選2人，如果等候區<2人則全選）
+                let selectedFromWaiting = [];
+                const waitingSelectCount = Math.min(waiting.length, 2);
+                
+                if (minPlayers.length >= waitingSelectCount) {
+                    // 隨機選
+                    selectedFromWaiting = [...minPlayers].sort(() => Math.random() - 0.5).slice(0, waitingSelectCount);
+                } else {
+                    // 不足，全選已打最少的，再補其他
+                    selectedFromWaiting = [...minPlayers];
+                    let remaining = waiting.filter(p => !selectedFromWaiting.includes(p));
+                    selectedFromWaiting.push(...remaining.slice(0, waitingSelectCount - selectedFromWaiting.length));
+                }
+                
+                // 從剛結束比賽的球場選人補足到4人
+                let finishedPool = [];
+                if (courtAFinished && currentCourtA.length > 0) {
+                    finishedPool = [...currentCourtA];
+                } else if (courtBFinished && currentCourtB.length > 0) {
+                    finishedPool = [...currentCourtB];
+                }
+                
+                // 排除已選的等候區球員，隨機選人補足到4人
+                finishedPool = finishedPool.filter(p => !selectedFromWaiting.includes(p));
+                const needCount = 4 - selectedFromWaiting.length;
+                let selectedFromFinished = [...finishedPool].sort(() => Math.random() - 0.5).slice(0, needCount);
+                
+                return [...selectedFromWaiting, ...selectedFromFinished];
+            } else if (waiting.length === 0) {
+                return [];
+            } else {
+                // 等候區>4人：優先選已打0場的球員
+                const zeroMatchPlayers = waiting.filter(p => playerMatchCount[p] === 0);
+                if (zeroMatchPlayers.length >= 4) {
+                    return zeroMatchPlayers.slice(0, 4);
+                } else {
+                    const pool = waiting.filter(p => !zeroMatchPlayers.includes(p));
+                    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+                    return [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
+                }
+            }
+        }
+
         // 新增球員
         function addPlayer() {
             const input = document.getElementById('playerNameInput');
             let name = input.value.trim();
-            // 名字格式化：首字大寫、其餘小寫
             name = name.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
             if (name.length > 0) {
                 name = name[0].toUpperCase() + name.slice(1);
             }
-            // 長度限制
             if (!name || name.length < 2 || name.length > 8) {
                 alert('請輸入2~8字的有效姓名（禁止特殊字元）');
                 input.focus();
                 return;
             }
-            // 防重複
             if (players.includes(name)) {
                 alert('此姓名已登記！');
                 input.value = '';
                 input.focus();
                 return;
             }
-            // 移除人數上限，允許無限制登記
-            // 禁止 race condition：輸入框暫時 disabled
             input.disabled = true;
             players.push(name);
             playerMatchCount[name] = 0;
@@ -480,30 +529,8 @@
             input.disabled = false;
             input.focus();
             clearInputError();
-            // nextPlayers 豐富性：人數小於等於12人時，優先從等候區選2人，再從剛結束比賽4人隨機補2人
-            if (players.length <= 12) {
-                // 等候區（未在場上）
-                const onCourt = [...currentCourtA, ...currentCourtB];
-                const waiting = players.filter(p => !onCourt.includes(p));
-                let selected = waiting.slice(0, 2);
-                // 場上球員 pool（排除已選）
-                const finishedPlayers = onCourt.filter(p => !selected.includes(p));
-                const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
-                selected = [...selected, ...shuffled.slice(0, 2)];
-                nextPlayers = selected;
-            } else {
-                // 12人以上維持原本邏輯：先選已打0場，否則亂數
-                const zeroMatchPlayers = players.filter(p => playerMatchCount[p] === 0);
-                if (zeroMatchPlayers.length >= 4) {
-                    nextPlayers = zeroMatchPlayers.slice(0, 4);
-                } else {
-                    // 不足4人則亂數選
-                    const pool = players.filter(p => !zeroMatchPlayers.includes(p));
-                    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                    nextPlayers = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
-                }
-            }
-            nextPlayersNeedUpdate = false;
+            // 新增球員時，標記需要更新 nextPlayers（但不立即更新，等到 displayMatch 時再統一處理）
+            nextPlayersNeedUpdate = true;
             updateDisplay();
             saveToFirebase();
             autoStartIfReady();
@@ -530,13 +557,10 @@
                 autoReplaceCourtB();
                 return;
             }
-            
             // 計算目前場上人數和等候區人數
             const onCourt = [...currentCourtA, ...currentCourtB].filter(p => p);
             const waiting = players.filter(p => !currentCourtA.includes(p) && !currentCourtB.includes(p));
-            
             console.log('自動檢查 - 總人數:', players.length, '場上:', onCourt.length, '等候:', waiting.length);
-            
             // 如果當前沒有比賽進行中，且至少有4人
             if (currentCourtA.length === 0 && currentCourtB.length === 0) {
                 if (players.length >= 4) {
@@ -552,27 +576,21 @@
                 }
             }
         }
-        
+
         // 開始B場
         function startCourtB() {
-            // 計算等候區球員（不在A場和B場的球員）
             const waiting = players.filter(p => !currentCourtA.includes(p) && !currentCourtB.includes(p));
-            
             console.log('開始B場 - 等候區球員:', waiting);
-            
             if (waiting.length >= 4) {
-                // 優先選擇按順序還沒上過場的球員
                 if (nextPlayerIndex < players.length) {
                     const remaining = players.length - nextPlayerIndex;
                     if (remaining >= 4) {
                         currentCourtB = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
                         nextPlayerIndex += 4;
                     } else {
-                        // 不足4人則從等候區選擇
                         currentCourtB = waiting.slice(0, 4);
                     }
                 } else {
-                    // 所有人都上過場了，從等候區按上場次數排序選擇
                     waiting.sort((a, b) => {
                         const countA = playerMatchCount[a] || 0;
                         const countB = playerMatchCount[b] || 0;
@@ -581,13 +599,10 @@
                     });
                     currentCourtB = waiting.slice(0, 4);
                 }
-                
                 currentCourtB.forEach(p => playerMatchCount[p]++);
                 courtBStarted = true;
                 courtBFinished = false;
-                
                 console.log('✅ B場球員:', currentCourtB);
-                
                 displayMatch();
                 saveToFirebase();
             }
@@ -596,13 +611,10 @@
         // 更新顯示
         function updateDisplay() {
             document.getElementById('totalPlayers').textContent = players.length;
-            
-            // 更新輸入框上方的報名人數
             const currentPlayerCount = document.getElementById('currentPlayerCount');
             if (currentPlayerCount) {
                 currentPlayerCount.textContent = `👥 目前報名人數 ${players.length}人`;
             }
-            
             const playersList = document.getElementById('playersList');
             if (players.length > 0) {
                 playersList.innerHTML = `
@@ -621,8 +633,6 @@
             } else {
                 playersList.innerHTML = '<div class="empty-state">尚無球員登記</div>';
             }
-            
-            // 在 updateDisplay 末尾新增：
             const deletedList = document.getElementById('deletedPlayersList');
             if (deletedList) {
                 if (Object.keys(deletedPlayers).length > 0) {
@@ -641,30 +651,10 @@
                     deletedList.innerHTML = '';
                 }
             }
-            
-            // 直接計算已完成場次
-            let finishedCount = 0;
-            // 以每位球員的出賽次數加總，除以每場人數（4人一場）
             const totalMatchCount = Object.values(playerMatchCount).reduce((a, b) => a + b, 0);
-            finishedCount = Math.floor(totalMatchCount / 4);
+            const finishedCount = Math.floor(totalMatchCount / 4);
             document.getElementById('finishedMatches').textContent = finishedCount;
-            
-            // 更新配對統計
             updatePairingStats();
-        }
-
-        // 開始比賽
-        function startGame() {
-            if (players.length < 4) {
-                alert('至少需要4位球員才能開始！');
-                return;
-            }
-            
-            nextPlayerIndex = 0;
-            finishedMatches = 0;
-            players.forEach(p => playerMatchCount[p] = 0);
-            
-            nextMatch();
         }
 
         // 開始下一場比賽
@@ -852,59 +842,16 @@
             
             document.getElementById('onCourtCount').textContent = onCourt.length;
             
-            // 只在需要更新時才重新計算下一輪要上場的4位球員（持久化到 localStorage）
+            // 只在需要更新時才重新計算下一輪要上場的4位球員（使用統一的 getNextPlayers 函數）
             if (nextPlayersNeedUpdate) {
                 if (waiting.length > 0) {
-                    // 先嘗試從 localStorage 恢復
-                    const stored = localStorage.getItem('nextPlayers');
-                    if (stored) {
-                        try {
-                            const restored = JSON.parse(stored);
-                            // 驗證存儲的球員是否都還存在於所有球員列表中
-                            if (restored.every(p => players.includes(p))) {
-                                nextPlayers = restored;
-                                console.log('✅ 從 localStorage 恢復準備上場球員:', nextPlayers);
-                                nextPlayersNeedUpdate = false;
-                            } else {
-                                throw new Error('存儲的球員不在所有球員列表中');
-                            }
-                        } catch (e) {
-                            // localStorage 無效，重新計算
-                            console.log('重新計算準備上場球員:', e.message);
-                            let pool = waiting.length >= 4 ? waiting : players;
-                            let best = null, bestScore = Infinity;
-                            for (let i = 0; i < 50; i++) {
-                                const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                                const candidate = shuffled.slice(0, 4);
-                                const score = getPairingScore(candidate);
-                                if (score < bestScore) {
-                                    bestScore = score;
-                                    best = candidate;
-                                }
-                            }
-                            nextPlayers = best || [];
-                            localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                            console.log('💾 準備上場球員已儲存:', nextPlayers);
-                            nextPlayersNeedUpdate = false;
-                        }
-                    } else {
-                        // 第一次計算，沒有 localStorage 存儲
-                        let pool = waiting.length >= 4 ? waiting : players;
-                        let best = null, bestScore = Infinity;
-                        for (let i = 0; i < 50; i++) {
-                            const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                            const candidate = shuffled.slice(0, 4);
-                            const score = getPairingScore(candidate);
-                            if (score < bestScore) {
-                                bestScore = score;
-                                best = candidate;
-                            }
-                        }
-                        nextPlayers = best || [];
-                        localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                        console.log('💾 準備上場球員已儲存:', nextPlayers);
-                        nextPlayersNeedUpdate = false;
-                    }
+                    // 使用統一的 getNextPlayers() 函數計算
+                    nextPlayers = getNextPlayers();
+                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
+                    console.log('💾 準備上場球員已儲存:', nextPlayers);
+                    nextPlayersNeedUpdate = false;
+                    // 立即同步到 Firebase，確保所有裝置看到相同的 nextPlayers
+                    saveToFirebase();
                 } else {
                     // 等候區沒人
                     nextPlayers = [];
@@ -912,63 +859,7 @@
                     nextPlayersNeedUpdate = false;
                 }
             }
-            
-            // nextPlayersNeedUpdate 為 false 時，僅使用現有 nextPlayers，不重算分組
-            if (!nextPlayersNeedUpdate) {
-                const stored = localStorage.getItem('nextPlayers');
-                if (stored) {
-                    try {
-                        const restored = JSON.parse(stored);
-                        if (restored.every(p => players.includes(p))) {
-                            nextPlayers = restored;
-                        }
-                    } catch (e) {}
-                }
-            } else {
-                const onCourt = [...currentCourtA, ...currentCourtB];
-                const waiting = players.filter(p => !onCourt.includes(p));
-                if (waiting.length <= 4) {
-                    // 等候區人數 ≤4，前2人等候區已打場次最低者，剩下2人場上球員隨機選取
-                    let minCount = Infinity;
-                    waiting.forEach(p => {
-                        if ((playerMatchCount[p]||0) < minCount) minCount = playerMatchCount[p]||0;
-                    });
-                    const minPlayers = waiting.filter(p => (playerMatchCount[p]||0) === minCount);
-                    let selected = [];
-                    if (minPlayers.length > 2) {
-                        selected = [...minPlayers].sort(() => Math.random() - 0.5).slice(0, 2);
-                    } else {
-                        selected = minPlayers.slice(0, 2);
-                    }
-                    // 剩下2人從場上球員 pool 隨機選取（排除已選的等候區球員）
-                    const finishedPlayers = onCourt.filter(p => !selected.includes(p));
-                    const shuffledFinished = [...finishedPlayers].sort(() => Math.random() - 0.5);
-                    selected = [...selected, ...shuffledFinished.slice(0, 2)];
-                    nextPlayers = selected;
-                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                    console.log('補充準備上場球員:', nextPlayers);
-                } else if (players.length <= 12) {
-                    // 原本規則
-                    let selected = waiting.slice(0, 2);
-                    const finishedPlayers = onCourt.filter(p => !selected.includes(p));
-                    const shuffled = [...finishedPlayers].sort(() => Math.random() - 0.5);
-                    selected = [...selected, ...shuffled.slice(0, 2)];
-                    nextPlayers = selected;
-                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                    console.log('補充準備上場球員:', nextPlayers);
-                } else if (nextPlayers.length < 4 && nextPlayers.length > 0) {
-                    const zeroMatchPlayers = players.filter(p => playerMatchCount[p] === 0);
-                    if (zeroMatchPlayers.length >= 4) {
-                        nextPlayers = zeroMatchPlayers.slice(0, 4);
-                    } else {
-                        const pool = players.filter(p => !zeroMatchPlayers.includes(p));
-                        const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                        nextPlayers = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
-                    }
-                    localStorage.setItem('nextPlayers', JSON.stringify(nextPlayers));
-                    console.log('補充準備上場球員:', nextPlayers);
-                }
-            }
+            // 不需要 else 分支，因為 Firebase 同步會處理 nextPlayers 的恢復
             
             // 更新等候區
             const waitingBoxCard = document.getElementById('waitingBoxCard');
@@ -1004,14 +895,14 @@
         
         // 自動替補A場
         function autoReplaceCourtA() {
-            // 只依 nextPlayers 分組規則
-            if (!nextPlayers || nextPlayers.length < 4) {
-                currentCourtA = [];
-                displayMatch();
-                saveToFirebase();
-                return;
+            // nextPlayers 為主，補足不足才用剛結束比賽球員
+            let prepared = nextPlayers ? nextPlayers.filter(p => !currentCourtB.includes(p)) : [];
+            if (prepared.length < 4) {
+                // 補剛結束比賽的球員（A場）
+                let finishedPool = [...currentCourtA].filter(p => !prepared.includes(p) && !currentCourtB.includes(p));
+                prepared = [...prepared, ...finishedPool];
             }
-            currentCourtA = nextPlayers.slice(0, 4);
+            currentCourtA = prepared.slice(0, 4);
             recordPairing(currentCourtA);
             localStorage.removeItem('nextPlayers');
             nextPlayers = [];
@@ -1025,14 +916,14 @@
         
         // 自動替補B場
         function autoReplaceCourtB() {
-            // 只依 nextPlayers 分組規則
-            if (!nextPlayers || nextPlayers.length < 4) {
-                currentCourtB = [];
-                displayMatch();
-                saveToFirebase();
-                return;
+            // nextPlayers 為主，補足不足才用剛結束比賽球員
+            let prepared = nextPlayers ? nextPlayers.filter(p => !currentCourtA.includes(p)) : [];
+            if (prepared.length < 4) {
+                // 補剛結束比賽的球員（B場）
+                let finishedPool = [...currentCourtB].filter(p => !prepared.includes(p) && !currentCourtA.includes(p));
+                prepared = [...prepared, ...finishedPool];
             }
-            currentCourtB = nextPlayers.slice(0, 4);
+            currentCourtB = prepared.slice(0, 4);
             recordPairing(currentCourtB);
             localStorage.removeItem('nextPlayers');
             nextPlayers = [];
@@ -1061,7 +952,25 @@
                     courtAStarted = data.courtAStarted || false;
                     courtBStarted = data.courtBStarted || false;
                     finishedMatches = data.finishedMatches || 0;
-                    nextPlayers = data.nextPlayers || [];
+                    
+                    // nextPlayers 從 Firebase 同步（保持穩定性）
+                    if (data.nextPlayers && data.nextPlayers.length > 0) {
+                        // 驗證 Firebase 的 nextPlayers 是否都還在球員名單中
+                        const validNextPlayers = data.nextPlayers.filter(p => players.includes(p));
+                        if (validNextPlayers.length === data.nextPlayers.length) {
+                            // 全部有效，直接使用
+                            nextPlayers = data.nextPlayers;
+                            nextPlayersNeedUpdate = false;
+                        } else {
+                            // 有球員已被刪除，標記需要重新計算
+                            nextPlayers = validNextPlayers;
+                            nextPlayersNeedUpdate = true;
+                        }
+                    } else {
+                        nextPlayers = [];
+                        nextPlayersNeedUpdate = true;
+                    }
+                    
                     deletedPlayers = data.deletedPlayers || {};
                     updateDisplay();
                     
