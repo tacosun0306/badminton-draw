@@ -451,8 +451,6 @@
                     <strong>配對多樣性分析：</strong>
                     <div id="pairingDiversityStats" style="margin-top:8px;font-size:14px;"></div>
                 </div>
-                <button class="btn btn-primary" onclick="runAutoTest()" style="width:100%;margin-top:10px;">
-                <!-- 🔬 自動測試配對演算法按鈕已移除 -->
             </div>
         </div>
 
@@ -1309,14 +1307,12 @@ function updatePairingStats() {
         return;
     }
     statsCard.style.display = 'block';
-    
     // 出場次數統計
     const matchCountDiv = document.getElementById('matchCountStats');
     const counts = Object.entries(playerMatchCount).sort((a, b) => b[1] - a[1]);
     matchCountDiv.innerHTML = counts.map(([name, count]) => 
         `<div>${name}: ${count}場</div>`
     ).join('');
-    
     // 配對多樣性分析
     const diversityDiv = document.getElementById('pairingDiversityStats');
     let totalPairs = 0;
