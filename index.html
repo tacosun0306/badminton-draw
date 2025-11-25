@@ -385,8 +385,7 @@
                     <div id="pairingDiversityStats" style="margin-top:8px;font-size:14px;"></div>
                 </div>
                 <button class="btn btn-primary" onclick="runAutoTest()" style="width:100%;margin-top:10px;">
-                    🔬 自動測試配對演算法
-                </button>
+                <!-- 🔬 自動測試配對演算法按鈕已移除 -->
             </div>
         </div>
 
@@ -1101,7 +1100,7 @@ function showReplaceDialog(oldPlayer) {
     }
     // 建立選單（radio + 確定按鈕）
     const selectHtml = `<div id='replaceDialogBg' style='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);z-index:9999;' onclick='closeReplaceDialog()'></div>
-        <div id='replaceDialog' style='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:30px 24px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);z-index:10000;'>
+        <div id='replaceDialog' style='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:30px 24px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);z-index:10000;width:350px;'>
             <div style='font-weight:bold;font-size:18px;margin-bottom:12px;'>替換「${oldPlayer}」</div>
             <div style='margin-bottom:16px;'>選擇要替換進來的球員：</div>
             <form id='replaceForm'>
@@ -1186,53 +1185,7 @@ function updatePairingStats() {
 }
 
 // 自動測試配對演算法
-function runAutoTest() {
-    if (players.length < 8) {
-        alert('自動測試需至少8位球員，正在自動新增測試球員...');
-        const testNames = ['王小明', '李小華', '張大偉', '陳小玲', '林志明', '黃美麗', '吳大同', '劉小芬', '蔡志強', '鄭小雯'];
-        for (let i = 0; i < 10; i++) {
-            if (!players.includes(testNames[i])) {
-                players.push(testNames[i]);
-                playerMatchCount[testNames[i]] = 0;
-                pairHistory[testNames[i]] = {};
-            }
-        }
-        updateDisplay();
-    }
-    
-    alert('開始自動測試：將進行10場比賽，觀察配對多樣性...');
-    
-    // 模擬10場比賽
-    let testRounds = 0;
-    const testInterval = setInterval(() => {
-        if (testRounds >= 10) {
-            clearInterval(testInterval);
-            updatePairingStats();
-            alert('自動測試完成！請查看配對統計區塊。');
-            return;
-        }
-        
-        // 模擬比賽結束並替補
-        if (currentCourtA.length === 0) {
-            assignByRandom();
-            currentCourtA.forEach(p => playerMatchCount[p]++);
-            currentCourtB.forEach(p => playerMatchCount[p]++);
-            recordPairing(currentCourtA);
-            recordPairing(currentCourtB);
-        } else {
-            courtAFinished = true;
-            courtBFinished = true;
-            nextPlayersNeedUpdate = true;
-            displayMatch();
-            setTimeout(() => {
-                autoReplaceCourtA();
-                autoReplaceCourtB();
-                testRounds++;
-            }, 100);
-        }
-    }, 500);
-}
-
+// ...自動測試配對演算法功能已移除...
         // 頁面載入時初始化
         window.onload = function() {
             // 讀取 finishedMatches
