@@ -298,6 +298,72 @@
                 font-size: 24px;
             }
         }
+
+        /* 手機版浮動新增球員按鈕 */
+        .mobile-add-player-btn {
+            display: none;
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            z-index: 998;
+            transition: all 0.3s;
+        }
+
+        .mobile-add-player-btn:hover {
+            background: #5568d3;
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .mobile-add-player-panel {
+            display: none;
+            position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            max-width: 320px;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+            z-index: 999;
+            padding: 20px;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+        }
+
+        .mobile-add-player-panel.active {
+            transform: translateX(0);
+        }
+
+        .mobile-panel-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 998;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-add-player-btn {
+                display: block;
+            }
+            
+            .card.desktop-add-player {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -305,10 +371,11 @@
         <div class="header">
             <h1>🏸 羽球配對系統</h1>
             <p>依到場順序登記，自動分配場次</p>
+            <div id="syncStatus" style="margin-top:8px;font-size:12px;color:#fff;opacity:0.9;"></div>
         </div>
 
         <!-- 球員登記輸入欄 -->
-        <div class="card" style="position: sticky; top: 10px; z-index: 100; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <div class="card desktop-add-player" style="position: sticky; top: 10px; z-index: 100; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
             <div style="text-align: center; margin-bottom: 12px; color: #667eea; font-weight: 600; font-size: 16px;">
                 <span id="currentPlayerCount">👥 目前報名人數 0人</span>
             </div>
@@ -397,6 +464,33 @@
         </div>
     </div>
 
+    <!-- 手機版浮動新增球員按鈕 -->
+    <button class="mobile-add-player-btn" onclick="toggleMobilePanel()" title="新增球員">
+        <div style="font-size: 18px; margin-bottom: -4px;">👤</div>
+        <div style="font-size: 28px; line-height: 1;">+</div>
+    </button>
+
+    <!-- 手機版新增球員面板 -->
+    <div class="mobile-panel-overlay" id="mobilePanelOverlay" onclick="closeMobilePanel()"></div>
+    <div class="mobile-add-player-panel" id="mobileAddPlayerPanel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #667eea;">👥 新增球員</h3>
+            <button onclick="closeMobilePanel()" style="background: transparent; border: none; font-size: 28px; color: #999; cursor: pointer; padding: 0; width: 32px; height: 32px;">&times;</button>
+        </div>
+        <div style="text-align: center; margin-bottom: 15px; color: #667eea; font-weight: 600; font-size: 16px;">
+            <span id="currentPlayerCountMobile">👥 目前報名人數 0人</span>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <input 
+                type="text" 
+                id="playerNameInputMobile" 
+                placeholder="輸入你的姓名" 
+                style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 16px;"
+                onkeypress="if(event.key === 'Enter') addPlayerMobile()">
+        </div>
+        <button class="btn btn-primary" onclick="addPlayerMobile()" style="width: 100%;">登記入場</button>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -446,6 +540,10 @@
 
         // 新增：記錄每位球員最近一次隊友名單
         let lastTeammates = {};
+
+        // 多人協作優化：操作鎖定機制
+        let isOperating = false; // 是否正在執行操作
+        let isSyncing = false; // 是否正在同步中
 
         // nextPlayers 產生邏輯統一
         function getNextPlayers() {
@@ -503,6 +601,10 @@
 
         // 新增球員
         function addPlayer() {
+            if (isOperating) {
+                console.log('⏳ 操作進行中，請稍候...');
+                return;
+            }
             const input = document.getElementById('playerNameInput');
             let name = input.value.trim();
             name = name.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
@@ -520,13 +622,17 @@
                 input.focus();
                 return;
             }
+            isOperating = true;
             input.disabled = true;
             players.push(name);
             playerMatchCount[name] = 0;
             pairHistory[name] = {};
             input.value = '';
-            input.disabled = false;
-            input.focus();
+            setTimeout(() => {
+                input.disabled = false;
+                input.focus();
+                isOperating = false;
+            }, 300);
             clearInputError();
             // 新增球員時，標記需要更新 nextPlayers（但不立即更新，等到 displayMatch 時再統一處理）
             nextPlayersNeedUpdate = true;
@@ -613,6 +719,10 @@
             const currentPlayerCount = document.getElementById('currentPlayerCount');
             if (currentPlayerCount) {
                 currentPlayerCount.textContent = `👥 目前報名人數 ${players.length}人`;
+            }
+            const currentPlayerCountMobile = document.getElementById('currentPlayerCountMobile');
+            if (currentPlayerCountMobile) {
+                currentPlayerCountMobile.textContent = `👥 目前報名人數 ${players.length}人`;
             }
             const playersList = document.getElementById('playersList');
             if (players.length > 0) {
@@ -875,6 +985,11 @@
 
         // 標記球場結束並自動替補
         function finishCourt(court) {
+            if (isOperating) {
+                console.log('⏳ 操作進行中，請稍候...');
+                return;
+            }
+            isOperating = true;
             if (court === 'A') {
                 courtAFinished = true;
                 finishedMatches++;
@@ -882,6 +997,7 @@
                 localStorage.setItem('finishedMatches', finishedMatches);
                 // A場結束，自動替補(會自動調用saveToFirebase)
                 autoReplaceCourtA();
+                setTimeout(() => { isOperating = false; }, 500);
             } else if (court === 'B') {
                 courtBFinished = true;
                 finishedMatches++;
@@ -889,6 +1005,7 @@
                 localStorage.setItem('finishedMatches', finishedMatches);
                 // B場結束，自動替補(會自動調用saveToFirebase)
                 autoReplaceCourtB();
+                setTimeout(() => { isOperating = false; }, 500);
             }
         }
         
@@ -982,9 +1099,11 @@
                         displayMatch();
                     }
                     console.log('📡 資料已同步');
+                    updateSyncStatus('✓ 已同步');
                 }
             }, (error) => {
                 console.error('同步錯誤:', error);
+                updateSyncStatus('✗ 連線錯誤');
             });
         }
         
@@ -994,6 +1113,8 @@
                 console.log('本地模式：資料已更新');
                 return;
             }
+            isSyncing = true;
+            updateSyncStatus('同步中...');
             const gameState = {
                 players,
                 playerMatchCount,
@@ -1010,15 +1131,39 @@
                 lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
             };
             db.collection('badminton').doc('gameState').set(gameState)
-                .then(() => console.log('💾 資料已儲存'))
-                .catch(error => console.error('儲存失敗:', error));
+                .then(() => {
+                    console.log('💾 資料已儲存');
+                    isSyncing = false;
+                    updateSyncStatus('✓ 已同步');
+                })
+                .catch(error => {
+                    console.error('儲存失敗:', error);
+                    isSyncing = false;
+                    updateSyncStatus('✗ 同步失敗');
+                });
+        }
+
+        // 更新同步狀態指示器
+        function updateSyncStatus(message) {
+            const statusEl = document.getElementById('syncStatus');
+            if (statusEl) {
+                statusEl.textContent = message;
+                if (message.includes('✓')) {
+                    setTimeout(() => { statusEl.textContent = ''; }, 2000);
+                }
+            }
         }
 
         // 重置比賽
         function resetGame() {
+            if (isOperating) {
+                console.log('⏳ 操作進行中，請稍候...');
+                return;
+            }
             if (!confirm('確定要重置比賽嗎？所有資料將會清空。')) {
                 return;
             }
+            isOperating = true;
             
             players = [];
             playerMatchCount = {};
@@ -1039,10 +1184,15 @@
             if (isFirebaseEnabled) {
                 saveToFirebase();
             }
+            setTimeout(() => { isOperating = false; }, 500);
         }
 
         // 刪除球員函式
         function deletePlayer(name) {
+            if (isOperating) {
+                console.log('⏳ 操作進行中，請稍候...');
+                return;
+            }
             // 防呆：刪除後人數不足4人禁止
             if (players.length <= 4) {
                 alert('球員人數低於4人，無法刪除！');
@@ -1054,6 +1204,7 @@
                 return;
             }
             if (!confirm(`確定要刪除「${name}」嗎？`)) return;
+            isOperating = true;
             // 記錄刪除前的上場次數
             deletedPlayers[name] = playerMatchCount[name] || 0;
             // 從 players 移除
@@ -1073,6 +1224,7 @@
             // 更新顯示與同步
             updateDisplay();
             saveToFirebase();
+            setTimeout(() => { isOperating = false; }, 300);
         }
 
         // 新增：恢復球員函式
@@ -1186,6 +1338,73 @@ function updatePairingStats() {
 
 // 自動測試配對演算法
 // ...自動測試配對演算法功能已移除...
+        // 手機版面板控制
+        function toggleMobilePanel() {
+            const panel = document.getElementById('mobileAddPlayerPanel');
+            const overlay = document.getElementById('mobilePanelOverlay');
+            if (panel.classList.contains('active')) {
+                closeMobilePanel();
+            } else {
+                panel.style.display = 'block';
+                overlay.style.display = 'block';
+                setTimeout(() => {
+                    panel.classList.add('active');
+                }, 10);
+                document.getElementById('playerNameInputMobile').focus();
+            }
+        }
+
+        function closeMobilePanel() {
+            const panel = document.getElementById('mobileAddPlayerPanel');
+            const overlay = document.getElementById('mobilePanelOverlay');
+            panel.classList.remove('active');
+            setTimeout(() => {
+                panel.style.display = 'none';
+                overlay.style.display = 'none';
+            }, 300);
+        }
+
+        // 手機版新增球員
+        function addPlayerMobile() {
+            if (isOperating) {
+                console.log('⏳ 操作進行中，請稍候...');
+                return;
+            }
+            const input = document.getElementById('playerNameInputMobile');
+            let name = input.value.trim();
+            name = name.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
+            if (name.length > 0) {
+                name = name[0].toUpperCase() + name.slice(1);
+            }
+            if (!name || name.length < 2 || name.length > 8) {
+                alert('請輸入2~8字的有效姓名（禁止特殊字元）');
+                input.focus();
+                return;
+            }
+            if (players.includes(name)) {
+                alert('此姓名已登記！');
+                input.value = '';
+                input.focus();
+                return;
+            }
+            isOperating = true;
+            input.disabled = true;
+            players.push(name);
+            playerMatchCount[name] = 0;
+            pairHistory[name] = {};
+            input.value = '';
+            setTimeout(() => {
+                input.disabled = false;
+                input.focus();
+                isOperating = false;
+            }, 300);
+            nextPlayersNeedUpdate = true;
+            updateDisplay();
+            saveToFirebase();
+            autoStartIfReady();
+            closeMobilePanel();
+        }
+
         // 頁面載入時初始化
         window.onload = function() {
             // 讀取 finishedMatches
