@@ -368,6 +368,7 @@
             padding: 20px;
             transform: translateX(100%);
             transition: transform 0.3s;
+            overflow: auto;
         }
 
         .mobile-add-player-panel.active {
@@ -416,6 +417,20 @@
                     placeholder="輸入你的姓名" 
                     onkeypress="if(event.key === 'Enter') addPlayer()">
                 <button class="btn btn-primary" onclick="addPlayer()">登記入場</button>
+                <button class="btn btn-primary" style="background:#17a2b8;" onclick="toggleFavoriteList()">⭐ 常用</button>
+            </div>
+            <!-- 常用名單 -->
+            <div id="favoriteListPanel" style="display:none;margin-top:15px;padding:12px;background:#f0f8ff;border-radius:8px;">
+                <div style="margin-bottom:10px;font-weight:bold;color:#667eea;">📋 常用名單</div>
+                <div id="favoritePlayersList" style="display:grid;gap:8px;margin-bottom:10px;"></div>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" id="newFavoriteName" placeholder="新增常用球員" style="flex:1;padding:8px;border:1px solid #667eea;border-radius:6px;font-size:14px;">
+                    <button class="btn btn-success" style="padding:8px 16px;font-size:14px;" onclick="addFavoritePlayer()">新增</button>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button class="btn btn-success" style="flex:1;padding:10px;font-size:14px;font-weight:bold;" onclick="addSelectedFavorites()">✓ 新增勾選</button>
+                    <button class="btn" style="background:#dc3545;color:white;flex:1;padding:10px;font-size:14px;font-weight:bold;" onclick="toggleFavoriteList()">✕ 關閉</button>
+                </div>
             </div>
         </div>
 
@@ -538,7 +553,16 @@
                 style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 16px;"
                 onkeypress="if(event.key === 'Enter') addPlayerMobile()">
         </div>
-        <button class="btn btn-primary" onclick="addPlayerMobile()" style="width: 100%;">登記入場</button>
+        <button class="btn btn-primary" onclick="addPlayerMobile()" style="width: 100%; margin-bottom: 12px;">登記入場</button>
+        <!-- 手機版常用名單 -->
+        <button class="btn btn-primary" style="background:#17a2b8;width:100%;margin-bottom:12px;" onclick="toggleMobileFavoriteList()">⭐ 常用名單</button>
+        <div id="mobileFavoriteListPanel" style="display:none;padding:12px;background:#f0f8ff;border-radius:8px;margin-bottom:12px;overflow-y:auto;">
+            <div style="margin-bottom:10px;font-weight:bold;color:#667eea;font-size:14px;">📋 常用球員</div>
+            <div id="mobileFavoritePlayersList" style="display:grid;gap:6px;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:6px;font-size:13px;">
+                <button class="btn btn-success" style="flex:1;padding:8px;font-weight:bold;" onclick="addSelectedFavoritesMobile()">✓ 新增勾選</button>
+            </div>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
@@ -596,6 +620,10 @@
         let isSyncing = false; // 是否正在同步中
         let lastSyncTime = 0; // 上次同步時間
         let localStateVersion = 0; // 本地狀態版本號
+        
+        // 常用名單
+        let favoriteList = []; // 常用球員名單
+        let selectedFavorites = []; // 勾選的常用球員
 
         // nextPlayers 產生邏輯統一
         function getNextPlayers() {
@@ -1467,9 +1495,15 @@ function updatePairingStats() {
                 finishedMatches = parseInt(storedFinished, 10) || 0;
                 document.getElementById('finishedMatches').textContent = finishedMatches;
             }
+            // 讀取常用名單
+            const storedFavorites = localStorage.getItem('favoriteList');
+            if (storedFavorites) {
+                favoriteList = JSON.parse(storedFavorites);
+            }
             // deletedPlayers 只走 Firebase，不再讀 localStorage
             updateDisplay();
             updatePairingStats();
+            refreshFavoriteList();
         };
         
         // 比賽紀錄儲存於 localStorage，格式：{ date: { players: [...], matchCount: {...} } }
@@ -1579,6 +1613,203 @@ function updatePairingStats() {
 
         function closeMatchCalendarModal() {
             document.getElementById('matchCalendarModal').style.display = 'none';
+        }
+
+        // 常用名單管理
+        function toggleFavoriteList() {
+            const panel = document.getElementById('favoriteListPanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                refreshFavoriteList();
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function refreshFavoriteList() {
+            const listDiv = document.getElementById('favoritePlayersList');
+            if (favoriteList.length === 0) {
+                listDiv.innerHTML = '<div style="color:#999;font-size:14px;">尚未新增常用球員</div>';
+            } else {
+                listDiv.innerHTML = favoriteList.map((name, idx) => `
+                    <div style="display:flex;align-items:center;gap:8px;background:white;padding:8px 12px;border-radius:6px;border-left:3px solid #667eea;">
+                        <input type="checkbox" id="fav-${idx}" onchange="toggleFavoriteCheckbox(${idx})" style="width:18px;height:18px;cursor:pointer;">
+                        <span style="flex:1;">${name}</span>
+                        <button class="btn btn-danger" style="padding:4px 12px;font-size:13px;" onclick="removeFavoritePlayer(${idx})">🗑️</button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function toggleFavoriteCheckbox(idx) {
+            const checkbox = document.getElementById(`fav-${idx}`);
+            if (checkbox.checked) {
+                if (!selectedFavorites.includes(favoriteList[idx])) {
+                    selectedFavorites.push(favoriteList[idx]);
+                }
+            } else {
+                selectedFavorites = selectedFavorites.filter(name => name !== favoriteList[idx]);
+            }
+        }
+
+        function addFavoritePlayer() {
+            const input = document.getElementById('newFavoriteName');
+            let name = input.value.trim();
+            name = name.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
+            if (name.length > 0) {
+                name = name[0].toUpperCase() + name.slice(1);
+            }
+            if (!name || name.length < 2 || name.length > 8) {
+                alert('請輸入2~8字的有效姓名（禁止特殊字元）');
+                input.focus();
+                return;
+            }
+            if (favoriteList.includes(name)) {
+                alert('此姓名已在常用名單中！');
+                input.value = '';
+                return;
+            }
+            favoriteList.push(name);
+            localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
+            input.value = '';
+            refreshFavoriteList();
+        }
+
+        function removeFavoritePlayer(idx) {
+            if (!confirm(`確定要刪除「${favoriteList[idx]}」嗎？`)) return;
+            favoriteList.splice(idx, 1);
+            localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
+            refreshFavoriteList();
+        }
+
+        function quickAddPlayer(name) {
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
+                return;
+            }
+            if (players.includes(name)) {
+                alert('此姓名已登記！');
+                return;
+            }
+            isOperating = true;
+            players.push(name);
+            playerMatchCount[name] = 0;
+            pairHistory[name] = {};
+            nextPlayersNeedUpdate = true;
+            setTimeout(() => {
+                isOperating = false;
+            }, 300);
+            updateDisplay();
+            saveToFirebase();
+            autoStartIfReady();
+            // 關閉常用名單面板
+            document.getElementById('favoriteListPanel').style.display = 'none';
+        }
+
+        function addSelectedFavorites() {
+            if (selectedFavorites.length === 0) {
+                alert('請先勾選要新增的球員');
+                return;
+            }
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
+                return;
+            }
+            const notAddedPlayers = selectedFavorites.filter(name => !players.includes(name));
+            if (notAddedPlayers.length === 0) {
+                alert('勾選的球員都已登記！');
+                return;
+            }
+            isOperating = true;
+            notAddedPlayers.forEach(name => {
+                players.push(name);
+                playerMatchCount[name] = 0;
+                pairHistory[name] = {};
+            });
+            nextPlayersNeedUpdate = true;
+            setTimeout(() => {
+                isOperating = false;
+            }, 300);
+            updateDisplay();
+            saveToFirebase();
+            autoStartIfReady();
+            // 清空勾選狀態
+            selectedFavorites = [];
+            // 關閉常用名單面板
+            document.getElementById('favoriteListPanel').style.display = 'none';
+            alert(`已新增 ${notAddedPlayers.length} 位球員`);
+        }
+
+        // 手機版常用名單
+        function toggleMobileFavoriteList() {
+            const panel = document.getElementById('mobileFavoriteListPanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                refreshMobileFavoriteList();
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        function refreshMobileFavoriteList() {
+            const listDiv = document.getElementById('mobileFavoritePlayersList');
+            if (favoriteList.length === 0) {
+                listDiv.innerHTML = '<div style="color:#999;font-size:13px;">尚未新增常用球員</div>';
+            } else {
+                listDiv.innerHTML = favoriteList.map((name, idx) => `
+                    <div style="display:flex;align-items:center;gap:6px;background:white;padding:6px 10px;border-radius:6px;border-left:3px solid #667eea;">
+                        <input type="checkbox" id="fav-mobile-${idx}" onchange="toggleMobileFavoriteCheckbox(${idx})" style="width:16px;height:16px;cursor:pointer;">
+                        <span style="flex:1;font-size:13px;">${name}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function toggleMobileFavoriteCheckbox(idx) {
+            const checkbox = document.getElementById(`fav-mobile-${idx}`);
+            if (checkbox.checked) {
+                if (!selectedFavorites.includes(favoriteList[idx])) {
+                    selectedFavorites.push(favoriteList[idx]);
+                }
+            } else {
+                selectedFavorites = selectedFavorites.filter(name => name !== favoriteList[idx]);
+            }
+        }
+
+        function addSelectedFavoritesMobile() {
+            if (selectedFavorites.length === 0) {
+                alert('請先勾選要新增的球員');
+                return;
+            }
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
+                return;
+            }
+            const notAddedPlayers = selectedFavorites.filter(name => !players.includes(name));
+            if (notAddedPlayers.length === 0) {
+                alert('勾選的球員都已登記！');
+                return;
+            }
+            isOperating = true;
+            notAddedPlayers.forEach(name => {
+                players.push(name);
+                playerMatchCount[name] = 0;
+                pairHistory[name] = {};
+            });
+            nextPlayersNeedUpdate = true;
+            setTimeout(() => {
+                isOperating = false;
+            }, 300);
+            updateDisplay();
+            saveToFirebase();
+            autoStartIfReady();
+            // 清空勾選狀態
+            selectedFavorites = [];
+            // 關閉常用名單面板
+            document.getElementById('mobileFavoriteListPanel').style.display = 'none';
+            // 關閉手機面板
+            closeMobilePanel();
+            alert(`已新增 ${notAddedPlayers.length} 位球員`);
         }
     </script>
 </body>
