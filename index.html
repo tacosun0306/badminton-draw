@@ -1173,6 +1173,14 @@
                         }
                         
                         deletedPlayers = data.deletedPlayers || {};
+                        
+                        // 同步常用名單
+                        if (data.favoriteList) {
+                            favoriteList = data.favoriteList;
+                            refreshFavoriteList();
+                            refreshMobileFavoriteList();
+                        }
+                        
                         updateDisplay();
                         
                         if (currentCourtA.length > 0 || currentCourtB.length > 0) {
@@ -1215,6 +1223,7 @@
                 finishedMatches,
                 nextPlayers,
                 deletedPlayers,
+                favoriteList,
                 version: localStateVersion, // 新增版本號
                 lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
             };
@@ -1499,11 +1508,7 @@ function updatePairingStats() {
                 finishedMatches = parseInt(storedFinished, 10) || 0;
                 document.getElementById('finishedMatches').textContent = finishedMatches;
             }
-            // 讀取常用名單
-            const storedFavorites = localStorage.getItem('favoriteList');
-            if (storedFavorites) {
-                favoriteList = JSON.parse(storedFavorites);
-            }
+            // 常用名單從 Firebase 同步，不再使用 localStorage
             // deletedPlayers 只走 Firebase，不再讀 localStorage
             updateDisplay();
             updatePairingStats();
@@ -1624,11 +1629,6 @@ function updatePairingStats() {
         function toggleFavoriteList() {
             const panel = document.getElementById('favoriteListPanel');
             if (panel.style.display === 'none') {
-                // 重新讀取 localStorage 確保資料最新
-                const storedFavorites = localStorage.getItem('favoriteList');
-                if (storedFavorites) {
-                    favoriteList = JSON.parse(storedFavorites);
-                }
                 panel.style.display = 'block';
                 refreshFavoriteList();
             } else {
@@ -1637,11 +1637,6 @@ function updatePairingStats() {
         }
 
         function refreshFavoriteList() {
-            // 重新讀取 localStorage 確保資料最新
-            const storedFavorites = localStorage.getItem('favoriteList');
-            if (storedFavorites) {
-                favoriteList = JSON.parse(storedFavorites);
-            }
             const listDiv = document.getElementById('favoritePlayersList');
             if (favoriteList.length === 0) {
                 listDiv.innerHTML = '<div style="color:#999;font-size:14px;">尚未新增常用球員</div>';
@@ -1685,8 +1680,8 @@ function updatePairingStats() {
                 return;
             }
             favoriteList.push(name);
-            localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
             input.value = '';
+            saveToFirebase();
             refreshFavoriteList();
             refreshMobileFavoriteList();
         }
@@ -1694,7 +1689,7 @@ function updatePairingStats() {
         function removeFavoritePlayer(idx) {
             if (!confirm(`確定要刪除「${favoriteList[idx]}」嗎？`)) return;
             favoriteList.splice(idx, 1);
-            localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
+            saveToFirebase();
             refreshFavoriteList();
             refreshMobileFavoriteList();
         }
@@ -1761,11 +1756,6 @@ function updatePairingStats() {
         function toggleMobileFavoriteList() {
             const panel = document.getElementById('mobileFavoriteListPanel');
             if (panel.style.display === 'none') {
-                // 重新讀取 localStorage 確保資料最新
-                const storedFavorites = localStorage.getItem('favoriteList');
-                if (storedFavorites) {
-                    favoriteList = JSON.parse(storedFavorites);
-                }
                 panel.style.display = 'block';
                 refreshMobileFavoriteList();
             } else {
@@ -1774,11 +1764,6 @@ function updatePairingStats() {
         }
 
         function refreshMobileFavoriteList() {
-            // 重新讀取 localStorage 確保資料最新
-            const storedFavorites = localStorage.getItem('favoriteList');
-            if (storedFavorites) {
-                favoriteList = JSON.parse(storedFavorites);
-            }
             const listDiv = document.getElementById('mobileFavoritePlayersList');
             if (favoriteList.length === 0) {
                 listDiv.innerHTML = '<div style="color:#999;font-size:13px;">尚未新增常用球員</div>';
@@ -1857,8 +1842,8 @@ function updatePairingStats() {
                 return;
             }
             favoriteList.push(name);
-            localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
             input.value = '';
+            saveToFirebase();
             refreshFavoriteList();
             refreshMobileFavoriteList();
         }
