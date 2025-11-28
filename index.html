@@ -1624,6 +1624,11 @@ function updatePairingStats() {
         function toggleFavoriteList() {
             const panel = document.getElementById('favoriteListPanel');
             if (panel.style.display === 'none') {
+                // 重新讀取 localStorage 確保資料最新
+                const storedFavorites = localStorage.getItem('favoriteList');
+                if (storedFavorites) {
+                    favoriteList = JSON.parse(storedFavorites);
+                }
                 panel.style.display = 'block';
                 refreshFavoriteList();
             } else {
@@ -1751,6 +1756,11 @@ function updatePairingStats() {
         function toggleMobileFavoriteList() {
             const panel = document.getElementById('mobileFavoriteListPanel');
             if (panel.style.display === 'none') {
+                // 重新讀取 localStorage 確保資料最新
+                const storedFavorites = localStorage.getItem('favoriteList');
+                if (storedFavorites) {
+                    favoriteList = JSON.parse(storedFavorites);
+                }
                 panel.style.display = 'block';
                 refreshMobileFavoriteList();
             } else {
