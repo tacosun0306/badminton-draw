@@ -1504,6 +1504,7 @@ function updatePairingStats() {
             updateDisplay();
             updatePairingStats();
             refreshFavoriteList();
+            refreshMobileFavoriteList();
         };
         
         // 比賽紀錄儲存於 localStorage，格式：{ date: { players: [...], matchCount: {...} } }
@@ -1673,6 +1674,7 @@ function updatePairingStats() {
             localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
             input.value = '';
             refreshFavoriteList();
+            refreshMobileFavoriteList();
         }
 
         function removeFavoritePlayer(idx) {
@@ -1680,6 +1682,7 @@ function updatePairingStats() {
             favoriteList.splice(idx, 1);
             localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
             refreshFavoriteList();
+            refreshMobileFavoriteList();
         }
 
         function quickAddPlayer(name) {
