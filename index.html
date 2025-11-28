@@ -594,6 +594,8 @@
         // 多人協作優化：操作鎖定機制
         let isOperating = false; // 是否正在執行操作
         let isSyncing = false; // 是否正在同步中
+        let lastSyncTime = 0; // 上次同步時間
+        let localStateVersion = 0; // 本地狀態版本號
 
         // nextPlayers 產生邏輯統一
         function getNextPlayers() {
@@ -651,8 +653,8 @@
 
         // 新增球員
         function addPlayer() {
-            if (isOperating) {
-                console.log('⏳ 操作進行中，請稍候...');
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
                 return;
             }
             const input = document.getElementById('playerNameInput');
@@ -684,7 +686,6 @@
                 isOperating = false;
             }, 300);
             clearInputError();
-            // 新增球員時，標記需要更新 nextPlayers（但不立即更新，等到 displayMatch 時再統一處理）
             nextPlayersNeedUpdate = true;
             updateDisplay();
             saveToFirebase();
@@ -1035,8 +1036,8 @@
 
         // 標記球場結束並自動替補
         function finishCourt(court) {
-            if (isOperating) {
-                console.log('⏳ 操作進行中，請稍候...');
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
                 return;
             }
             isOperating = true;
@@ -1108,48 +1109,51 @@
             unsubscribe = db.collection('badminton').doc('gameState').onSnapshot((doc) => {
                 if (doc.exists) {
                     const data = doc.data();
-                    players = data.players || [];
-                    playerMatchCount = data.playerMatchCount || {};
-                    nextPlayerIndex = data.nextPlayerIndex || 0;
-                    currentCourtA = data.currentCourtA || [];
-                    currentCourtB = data.currentCourtB || [];
-                    courtAFinished = data.courtAFinished || false;
-                    courtBFinished = data.courtBFinished || false;
-                    courtAStarted = data.courtAStarted || false;
-                    courtBStarted = data.courtBStarted || false;
-                    finishedMatches = data.finishedMatches || 0;
+                    const remoteVersion = data.version || 0;
                     
-                    // nextPlayers 從 Firebase 同步（保持穩定性）
-                    if (data.nextPlayers && data.nextPlayers.length > 0) {
-                        // 驗證 Firebase 的 nextPlayers 是否都還在球員名單中
-                        const validNextPlayers = data.nextPlayers.filter(p => players.includes(p));
-                        if (validNextPlayers.length === data.nextPlayers.length) {
-                            // 全部有效，直接使用
-                            nextPlayers = data.nextPlayers;
-                            nextPlayersNeedUpdate = false;
+                    // 版本比對：只有當遠端版本更新時才覆蓋本地資料
+                    if (remoteVersion >= localStateVersion) {
+                        players = data.players || [];
+                        playerMatchCount = data.playerMatchCount || {};
+                        nextPlayerIndex = data.nextPlayerIndex || 0;
+                        currentCourtA = data.currentCourtA || [];
+                        currentCourtB = data.currentCourtB || [];
+                        courtAFinished = data.courtAFinished || false;
+                        courtBFinished = data.courtBFinished || false;
+                        courtAStarted = data.courtAStarted || false;
+                        courtBStarted = data.courtBStarted || false;
+                        finishedMatches = data.finishedMatches || 0;
+                        localStateVersion = remoteVersion;
+                        
+                        // nextPlayers 從 Firebase 同步（保持穩定性）
+                        if (data.nextPlayers && data.nextPlayers.length > 0) {
+                            const validNextPlayers = data.nextPlayers.filter(p => players.includes(p));
+                            if (validNextPlayers.length === data.nextPlayers.length) {
+                                nextPlayers = data.nextPlayers;
+                                nextPlayersNeedUpdate = false;
+                            } else {
+                                nextPlayers = validNextPlayers;
+                                nextPlayersNeedUpdate = true;
+                            }
                         } else {
-                            // 有球員已被刪除，標記需要重新計算
-                            nextPlayers = validNextPlayers;
+                            nextPlayers = [];
                             nextPlayersNeedUpdate = true;
                         }
-                    } else {
-                        nextPlayers = [];
-                        nextPlayersNeedUpdate = true;
-                    }
-                    
-                    deletedPlayers = data.deletedPlayers || {};
-                    updateDisplay();
-                    
-                    // 如果有球場正在進行，立即顯示
-                    if (currentCourtA.length > 0 || currentCourtB.length > 0) {
-                        const currentMatchDiv = document.getElementById('currentMatch');
-                        if (currentMatchDiv) {
-                            currentMatchDiv.style.display = 'block';
+                        
+                        deletedPlayers = data.deletedPlayers || {};
+                        updateDisplay();
+                        
+                        if (currentCourtA.length > 0 || currentCourtB.length > 0) {
+                            const currentMatchDiv = document.getElementById('currentMatch');
+                            if (currentMatchDiv) {
+                                currentMatchDiv.style.display = 'block';
+                            }
+                            displayMatch();
                         }
-                        displayMatch();
+                        console.log('📡 資料已同步 (版本: ' + remoteVersion + ')');
+                        updateSyncStatus('✓ 已同步');
                     }
-                    console.log('📡 資料已同步');
-                    updateSyncStatus('✓ 已同步');
+                    lastSyncTime = Date.now();
                 }
             }, (error) => {
                 console.error('同步錯誤:', error);
@@ -1165,6 +1169,7 @@
             }
             isSyncing = true;
             updateSyncStatus('同步中...');
+            localStateVersion++; // 遞增版本號
             const gameState = {
                 players,
                 playerMatchCount,
@@ -1177,12 +1182,13 @@
                 courtBStarted,
                 finishedMatches,
                 nextPlayers,
-                deletedPlayers, // 新增 deletedPlayers
+                deletedPlayers,
+                version: localStateVersion, // 新增版本號
                 lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
             };
             db.collection('badminton').doc('gameState').set(gameState)
                 .then(() => {
-                    console.log('💾 資料已儲存');
+                    console.log('💾 資料已儲存 (版本: ' + localStateVersion + ')');
                     isSyncing = false;
                     updateSyncStatus('✓ 已同步');
                 })
@@ -1206,8 +1212,8 @@
 
         // 重置比賽
         function resetGame() {
-            if (isOperating) {
-                console.log('⏳ 操作進行中，請稍候...');
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
                 return;
             }
             if (!confirm('確定要重置比賽嗎？所有資料將會清空。')) {
@@ -1239,8 +1245,8 @@
 
         // 刪除球員函式
         function deletePlayer(name) {
-            if (isOperating) {
-                console.log('⏳ 操作進行中，請稍候...');
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
                 return;
             }
             // 防呆：刪除後人數不足4人禁止
@@ -1414,8 +1420,8 @@ function updatePairingStats() {
 
         // 手機版新增球員
         function addPlayerMobile() {
-            if (isOperating) {
-                console.log('⏳ 操作進行中，請稍候...');
+            if (isOperating || isSyncing) {
+                console.log('⏳ 操作進行中或同步中，請稍候...');
                 return;
             }
             const input = document.getElementById('playerNameInputMobile');
