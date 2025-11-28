@@ -123,7 +123,7 @@
             border-radius: 6px;
             border: 2px solid #667eea;
             text-align: center;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .status-box {
@@ -190,7 +190,7 @@
             text-align: center;
             color: #856404;
             font-weight: 500;
-            font-size: 12px;
+            font-size: 16px;
         }
         
         .waiting-player small {
@@ -246,11 +246,15 @@
             margin-top: 30px;
             padding: 20px;
             text-align: center;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
 
         .btn-reset-large {
-            padding: 18px 60px;
-            font-size: 20px;
+            padding: 18px 40px;
+            font-size: 18px;
             font-weight: bold;
             background: #dc3545;
             color: white;
@@ -259,6 +263,8 @@
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            flex: 1;
+            min-width: 140px;
         }
 
         .btn-reset-large:hover {
@@ -271,20 +277,38 @@
             transform: translateY(0);
         }
 
+        .btn-action-large {
+            padding: 18px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            flex: 1;
+            min-width: 140px;
+        }
+
+        .btn-action-large:hover {
+            transform: translateY(-2px);
+        }
+
         .display-grid {
             display: grid; grid-template-columns: 2fr 1fr; gap: 20px;
         }
 
         /* 響應式設計 */
         @media (max-width: 768px) {
-            .btn-reset-large {
-                width: 100%;
-                padding: 20px;
-                font-size: 22px;
-            }
-
             .reset-button-container {
                 padding: 15px;
+                gap: 10px;
+            }
+
+            .btn-reset-large, .btn-action-large {
+                padding: 14px 20px;
+                font-size: 16px;
+                min-width: 120px;
             }
 
             .display-grid {
@@ -293,9 +317,15 @@
         }
 
         @media (max-width: 480px) {
-            .btn-reset-large {
-                padding: 22px;
-                font-size: 24px;
+            .reset-button-container {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .btn-reset-large, .btn-action-large {
+                width: 100%;
+                padding: 16px;
+                font-size: 16px;
             }
         }
 
@@ -456,9 +486,31 @@
 
         <!-- 重置按鈕 -->
         <div class="reset-button-container">
-            <button class="btn-reset-large" onclick="resetGame()">
-                比賽重置
-            </button>
+            <button class="btn-reset-large" onclick="resetGame()">比賽重置</button>
+            <button class="btn-action-large" style="background:#28a745;color:white;" onclick="saveMatchRecord()">儲存比賽</button>
+            <button class="btn-action-large" style="background:#667eea;color:white;" onclick="showMatchCalendar()">比賽日曆</button>
+        </div>
+        <!-- 比賽紀錄彈窗 -->
+        <div id="matchRecordModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.18);z-index:9999;">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px 28px;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:340px;max-width:90vw;height: 100vh;
+    overflow: auto;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+                    <div style="font-size:22px;font-weight:bold;color:#667eea;">比賽紀錄</div>
+                    <button onclick="closeMatchRecordModal()" style="background:transparent;border:none;font-size:28px;color:#999;cursor:pointer;">&times;</button>
+                </div>
+                <div id="matchRecordTable"></div>
+            </div>
+        </div>
+        <!-- 比賽日曆彈窗 -->
+        <div id="matchCalendarModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.18);z-index:9999;">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px 28px;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:340px;max-width:90vw;height: 100vh;overflow: auto;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+                    <div style="font-size:22px;font-weight:bold;color:#667eea;">比賽日曆</div>
+                    <button onclick="closeMatchCalendarModal()" style="background:transparent;border:none;font-size:28px;color:#999;cursor:pointer;">&times;</button>
+                </div>
+                <div id="calendarDateList"></div>
+                <div id="calendarRecordTable" style="margin-top:18px;"></div>
+            </div>
         </div>
     </div>
 
@@ -1413,6 +1465,115 @@ function updatePairingStats() {
             updateDisplay();
             updatePairingStats();
         };
+        
+        // 比賽紀錄儲存於 localStorage，格式：{ date: { players: [...], matchCount: {...} } }
+        function saveMatchRecord() {
+            if (players.length === 0 && Object.keys(deletedPlayers).length === 0) {
+                alert('目前沒有球員，無法儲存比賽！');
+                return;
+            }
+            const today = new Date();
+            const dateStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+            if (!confirm(`確定要儲存 ${dateStr} 的比賽紀錄嗎？`)) {
+                return;
+            }
+            // 合併現有球員與已刪除球員
+            const allNames = [...players, ...Object.keys(deletedPlayers)];
+            // 合併場次
+            const matchCountAll = {...playerMatchCount};
+            Object.entries(deletedPlayers).forEach(([name, count]) => {
+                matchCountAll[name] = count;
+            });
+            const record = {
+                date: dateStr,
+                players: allNames,
+                matchCount: matchCountAll,
+                deleted: Object.keys(deletedPlayers)
+            };
+            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
+            allRecords[dateStr] = record;
+            localStorage.setItem('matchRecords', JSON.stringify(allRecords));
+            alert('比賽紀錄已保存！');
+            showMatchRecordModal(record);
+        }
+
+        function showMatchRecordModal(record) {
+            const modal = document.getElementById('matchRecordModal');
+            const tableDiv = document.getElementById('matchRecordTable');
+            if (!record) {
+                tableDiv.innerHTML = '<div style="color:#dc3545;">查無紀錄</div>';
+            } else {
+                let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 日期：${record.date}</div>`;
+                html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
+                html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
+                record.players.forEach((name, idx) => {
+                    const isDel = record.deleted && record.deleted.includes(name);
+                    const bgColor = idx % 2 === 0 ? '#f9f9f9' : '#ffffff';
+                    html += `<tr style="background:${bgColor};border-bottom:1px solid #e0e0e0;${isDel ? 'opacity:0.6;' : ''}"><td style="padding:12px;${isDel ? 'text-decoration:line-through;color:#999;' : 'color:#333;'}">${name}${isDel ? ' <span style=\'color:#dc3545;font-size:12px;font-weight:bold;\'>(已刪除)</span>' : ''}</td><td style="padding:12px;text-align:center;font-weight:bold;color:#667eea;">${record.matchCount[name] || 0}</td></tr>`;
+                });
+                html += '</table>';
+                html += `<div style="margin-top:16px;text-align:center;"><button style="background:#667eea;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="closeMatchRecordModal()">✕ 關閉</button></div>`;
+                tableDiv.innerHTML = html;
+            }
+            modal.style.display = 'block';
+        }
+
+        function closeMatchRecordModal() {
+            document.getElementById('matchRecordModal').style.display = 'none';
+        }
+
+        function showMatchCalendar() {
+            const modal = document.getElementById('matchCalendarModal');
+            const dateListDiv = document.getElementById('calendarDateList');
+            const tableDiv = document.getElementById('calendarRecordTable');
+            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
+            const dates = Object.keys(allRecords).sort((a,b) => b.localeCompare(a));
+            if (dates.length === 0) {
+                dateListDiv.innerHTML = '<div style="color:#dc3545;">尚無比賽紀錄</div>';
+                tableDiv.innerHTML = '';
+            } else {
+                dateListDiv.innerHTML = dates.map(date => `<button style="margin:4px 8px 4px 0;padding:8px 18px;border-radius:8px;border:none;background:#667eea;color:white;font-size:16px;cursor:pointer;" onclick="showCalendarRecord('${date}')">${date}</button>`).join('');
+                tableDiv.innerHTML = '';
+            }
+            modal.style.display = 'block';
+        }
+
+        function showCalendarRecord(date) {
+            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
+            const record = allRecords[date];
+            const tableDiv = document.getElementById('calendarRecordTable');
+            if (!record) {
+                tableDiv.innerHTML = '<div style="color:#dc3545;">查無紀錄</div>';
+            } else {
+                let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 日期：${record.date}</div>`;
+                html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
+                html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
+                record.players.forEach((name, idx) => {
+                    const isDel = record.deleted && record.deleted.includes(name);
+                    const bgColor = idx % 2 === 0 ? '#f9f9f9' : '#ffffff';
+                    html += `<tr style="background:${bgColor};border-bottom:1px solid #e0e0e0;${isDel ? 'opacity:0.6;' : ''}"><td style="padding:12px;${isDel ? 'text-decoration:line-through;color:#999;' : 'color:#333;'}">${name}${isDel ? ' <span style=\'color:#dc3545;font-size:12px;font-weight:bold;\'>(已刪除)</span>' : ''}</td><td style="padding:12px;text-align:center;font-weight:bold;color:#667eea;">${record.matchCount[name] || 0}</td></tr>`;
+                });
+                html += '</table>';
+                html += `<div style="margin-top:16px;display:flex;gap:10px;justify-content:center;"><button style="background:#dc3545;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="deleteMatchRecord('${date}')">🗑️ 刪除此紀錄</button><button style="background:#667eea;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="closeMatchCalendarModal()">✕ 關閉</button></div>`;
+                tableDiv.innerHTML = html;
+            }
+        }
+
+        function deleteMatchRecord(date) {
+            if (!confirm(`確定要刪除 ${date} 的比賽紀錄嗎？此操作無法恢復。`)) {
+                return;
+            }
+            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
+            delete allRecords[date];
+            localStorage.setItem('matchRecords', JSON.stringify(allRecords));
+            alert(`${date} 的比賽紀錄已刪除。`);
+            // 重新刷新日曆列表
+            showMatchCalendar();
+        }
+
+        function closeMatchCalendarModal() {
+            document.getElementById('matchCalendarModal').style.display = 'none';
+        }
     </script>
 </body>
 </html>
