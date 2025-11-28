@@ -559,6 +559,10 @@
         <div id="mobileFavoriteListPanel" style="display:none;padding:12px;background:#f0f8ff;border-radius:8px;margin-bottom:12px;overflow-y:auto;">
             <div style="margin-bottom:10px;font-weight:bold;color:#667eea;font-size:14px;">📋 常用球員</div>
             <div id="mobileFavoritePlayersList" style="display:grid;gap:6px;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+                <input type="text" id="newFavoriteNameMobile" placeholder="新增常用球員" style="flex:1;padding:8px;border:1px solid #667eea;border-radius:6px;font-size:14px;">
+                <button class="btn btn-success" style="padding:8px 16px;font-size:14px;" onclick="addFavoritePlayerMobile()">新增</button>
+            </div>
             <div style="display:flex;gap:6px;font-size:13px;">
                 <button class="btn btn-success" style="flex:1;padding:8px;font-weight:bold;" onclick="addSelectedFavoritesMobile()">✓ 新增勾選</button>
             </div>
@@ -1813,6 +1817,30 @@ function updatePairingStats() {
             // 關閉手機面板
             closeMobilePanel();
             alert(`已新增 ${notAddedPlayers.length} 位球員`);
+        }
+
+        function addFavoritePlayerMobile() {
+            const input = document.getElementById('newFavoriteNameMobile');
+            let name = input.value.trim();
+            name = name.replace(/\s+/g, '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '');
+            if (name.length > 0) {
+                name = name[0].toUpperCase() + name.slice(1);
+            }
+            if (!name || name.length < 2 || name.length > 8) {
+                alert('請輸入2~8字的有效姓名（禁止特殊字元）');
+                input.focus();
+                return;
+            }
+            if (favoriteList.includes(name)) {
+                alert('此姓名已在常用名單中！');
+                input.value = '';
+                return;
+            }
+            favoriteList.push(name);
+            localStorage.setItem('favoriteList', JSON.stringify(favoriteList));
+            input.value = '';
+            refreshFavoriteList();
+            refreshMobileFavoriteList();
         }
     </script>
 </body>
