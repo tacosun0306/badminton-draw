@@ -1637,6 +1637,11 @@ function updatePairingStats() {
         }
 
         function refreshFavoriteList() {
+            // 重新讀取 localStorage 確保資料最新
+            const storedFavorites = localStorage.getItem('favoriteList');
+            if (storedFavorites) {
+                favoriteList = JSON.parse(storedFavorites);
+            }
             const listDiv = document.getElementById('favoritePlayersList');
             if (favoriteList.length === 0) {
                 listDiv.innerHTML = '<div style="color:#999;font-size:14px;">尚未新增常用球員</div>';
@@ -1769,6 +1774,11 @@ function updatePairingStats() {
         }
 
         function refreshMobileFavoriteList() {
+            // 重新讀取 localStorage 確保資料最新
+            const storedFavorites = localStorage.getItem('favoriteList');
+            if (storedFavorites) {
+                favoriteList = JSON.parse(storedFavorites);
+            }
             const listDiv = document.getElementById('mobileFavoritePlayersList');
             if (favoriteList.length === 0) {
                 listDiv.innerHTML = '<div style="color:#999;font-size:13px;">尚未新增常用球員</div>';
