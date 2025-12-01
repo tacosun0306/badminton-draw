@@ -196,7 +196,7 @@
         .waiting-player small {
             display: block;
             margin-top: 1px;
-            font-size: 10px;
+            font-size: 14px;
             color: #856404;
         }
 
@@ -204,9 +204,9 @@
             display: inline-block;
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
-            padding: 2px 8px;
+            padding: 4px 12px;
             border-radius: 12px;
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 600;
             margin-left: 4px;
             box-shadow: 0 2px 6px rgba(40, 167, 69, 0.2);
@@ -1262,6 +1262,7 @@
             }
             isOperating = true;
             
+            // 只重設 gameState，不影響已儲存的比賽紀錄（matchRecords、calendarRecords 另存）
             players = [];
             playerMatchCount = {};
             nextPlayerIndex = 0;
@@ -1278,6 +1279,7 @@
             document.getElementById('currentMatch').style.display = 'none';
             document.getElementById('finishedMatches').textContent = '0';
             updateDisplay();
+            // 只更新 gameState，不動 matchRecords/calendarRecords
             if (isFirebaseEnabled) {
                 saveToFirebase();
             }
