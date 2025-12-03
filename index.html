@@ -334,12 +334,12 @@
             display: none;
             position: fixed;
             right: 20px;
-            top: 50%;
+            top: calc(50% - 30px);
             transform: translateY(-50%);
             width: 56px;
             height: 56px;
             border-radius: 50%;
-            background: #667eea;
+            background: #20c997;
             color: white;
             border: none;
             font-size: 28px;
@@ -351,6 +351,31 @@
 
         .mobile-add-player-btn:hover {
             background: #5568d3;
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        /* 手機版浮動常用名單按鈕 */
+        .mobile-favorite-btn {
+            display: none;
+            position: fixed;
+            right: 20px;
+            top: calc(50% + 40px);
+            transform: translateY(-50%);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+            z-index: 998;
+            transition: all 0.3s;
+        }
+
+        .mobile-favorite-btn:hover {
+            background: #138496;
             transform: translateY(-50%) scale(1.1);
         }
 
@@ -375,6 +400,27 @@
             transform: translateX(0);
         }
 
+        .mobile-favorite-panel {
+            display: none;
+            position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            max-width: 320px;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+            z-index: 999;
+            padding: 20px;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            overflow: auto;
+        }
+
+        .mobile-favorite-panel.active {
+            transform: translateX(0);
+        }
+
         .mobile-panel-overlay {
             display: none;
             position: fixed;
@@ -388,6 +434,10 @@
 
         @media (max-width: 768px) {
             .mobile-add-player-btn {
+                display: block;
+            }
+
+            .mobile-favorite-btn {
                 display: block;
             }
             
@@ -531,8 +581,12 @@
 
     <!-- 手機版浮動新增球員按鈕 -->
     <button class="mobile-add-player-btn" onclick="toggleMobilePanel()" title="新增球員">
-        <div style="font-size: 18px; margin-bottom: -4px;">👤</div>
         <div style="font-size: 28px; line-height: 1;">+</div>
+    </button>
+
+    <!-- 手機版浮動常用名單按鈕 -->
+    <button class="mobile-favorite-btn" onclick="toggleMobileFavoritePanel()" title="常用名單">
+        ⭐
     </button>
 
     <!-- 手機版新增球員面板 -->
@@ -554,19 +608,24 @@
                 onkeypress="if(event.key === 'Enter') addPlayerMobile()">
         </div>
         <button class="btn btn-primary" onclick="addPlayerMobile()" style="width: 100%; margin-bottom: 12px;">登記入場</button>
-        <!-- 手機版常用名單 -->
-        <button class="btn btn-primary" style="background:#17a2b8;width:100%;margin-bottom:12px;" onclick="toggleMobileFavoriteList()">⭐ 常用名單</button>
-        <div id="mobileFavoriteListPanel" style="display:none;padding:12px;background:#f0f8ff;border-radius:8px;margin-bottom:12px;overflow-y:auto;">
-            <div style="margin-bottom:10px;font-weight:bold;color:#667eea;font-size:14px;">📋 常用球員</div>
-            <div id="mobileFavoritePlayersList" style="display:grid;gap:6px;margin-bottom:10px;"></div>
-            <div style="display:flex;gap:6px;margin-bottom:8px;">
-                <input type="text" id="newFavoriteNameMobile" placeholder="新增常用球員" style="flex:1;padding:8px;border:1px solid #667eea;border-radius:6px;font-size:14px;">
-                <button class="btn btn-success" style="padding:8px 16px;font-size:14px;" onclick="addFavoritePlayerMobile()">新增</button>
-            </div>
-            <div style="display:flex;gap:6px;font-size:16px;">
-                <button class="btn btn-success" style="flex:1;padding:8px;font-weight:bold;" onclick="addSelectedFavoritesMobile()">✓ 新增勾選</button>
-            </div>
+    </div>
+
+    <!-- 手機版常用名單面板 -->
+    <div class="mobile-panel-overlay" id="mobileFavoritePanelOverlay" onclick="closeMobileFavoritePanel()"></div>
+    <div class="mobile-favorite-panel" id="mobileFavoritePanel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #17a2b8;">⭐ 常用名單</h3>
+            <button onclick="closeMobileFavoritePanel()" style="background: transparent; border: none; font-size: 28px; color: #999; cursor: pointer; padding: 0; width: 32px; height: 32px;">&times;</button>
         </div>
+        <div style="margin-bottom: 15px;">
+            <div style="margin-bottom:10px;font-weight:bold;color:#667eea;font-size:14px;">📋 常用球員</div>
+            <div id="mobileFavoritePlayersList" style="display:grid;gap:6px;margin-bottom:10px;max-height:50vh;overflow-y:auto;"></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+            <input type="text" id="newFavoriteNameMobile" placeholder="新增常用球員" style="flex:1;padding:12px;border:2px solid #667eea;border-radius:6px;font-size:16px;">
+            <button class="btn btn-success" style="padding:12px 16px;font-size:14px;" onclick="addFavoritePlayerMobile()">新增</button>
+        </div>
+        <button class="btn btn-success" style="width:100%;padding:12px;font-weight:bold;font-size:16px;" onclick="addSelectedFavoritesMobile()">✓ 新增勾選的球員</button>
     </div>
 
     <!-- Firebase SDK -->
@@ -1461,6 +1520,32 @@ function updatePairingStats() {
             }, 300);
         }
 
+        // 手機版常用名單面板控制
+        function toggleMobileFavoritePanel() {
+            const panel = document.getElementById('mobileFavoritePanel');
+            const overlay = document.getElementById('mobileFavoritePanelOverlay');
+            if (panel.classList.contains('active')) {
+                closeMobileFavoritePanel();
+            } else {
+                panel.style.display = 'block';
+                overlay.style.display = 'block';
+                setTimeout(() => {
+                    panel.classList.add('active');
+                }, 10);
+                refreshMobileFavoriteList();
+            }
+        }
+
+        function closeMobileFavoritePanel() {
+            const panel = document.getElementById('mobileFavoritePanel');
+            const overlay = document.getElementById('mobileFavoritePanelOverlay');
+            panel.classList.remove('active');
+            setTimeout(() => {
+                panel.style.display = 'none';
+                overlay.style.display = 'none';
+            }, 300);
+        }
+
         // 手機版新增球員
         function addPlayerMobile() {
             if (isOperating || isSyncing) {
@@ -1820,9 +1905,7 @@ function updatePairingStats() {
             // 清空勾選狀態
             selectedFavorites = [];
             // 關閉常用名單面板
-            document.getElementById('mobileFavoriteListPanel').style.display = 'none';
-            // 關閉手機面板
-            closeMobilePanel();
+            closeMobileFavoritePanel();
             alert(`已新增 ${notAddedPlayers.length} 位球員`);
         }
 
