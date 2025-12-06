@@ -1795,12 +1795,12 @@ function updatePairingStats() {
             playerMatchCount[name] = 0;
             pairHistory[name] = {};
             nextPlayersNeedUpdate = true;
-            setTimeout(() => {
-                isOperating = false;
-            }, 300);
             updateDisplay();
             saveToFirebase();
-            autoStartIfReady();
+            setTimeout(() => {
+                isOperating = false;
+                autoStartIfReady();
+            }, 300);
             // 關閉常用名單面板
             document.getElementById('favoriteListPanel').style.display = 'none';
         }
@@ -1820,20 +1820,23 @@ function updatePairingStats() {
                 return;
             }
             isOperating = true;
+            // 批次新增所有球員
             notAddedPlayers.forEach(name => {
                 players.push(name);
                 playerMatchCount[name] = 0;
                 pairHistory[name] = {};
             });
             nextPlayersNeedUpdate = true;
-            setTimeout(() => {
-                isOperating = false;
-            }, 300);
+            // 先更新顯示和儲存
             updateDisplay();
             saveToFirebase();
-            autoStartIfReady();
             // 清空勾選狀態
             selectedFavorites = [];
+            // 延遲後自動開始比賽
+            setTimeout(() => {
+                isOperating = false;
+                autoStartIfReady();
+            }, 300);
             // 關閉常用名單面板
             document.getElementById('favoriteListPanel').style.display = 'none';
             alert(`已新增 ${notAddedPlayers.length} 位球員`);
@@ -1890,20 +1893,23 @@ function updatePairingStats() {
                 return;
             }
             isOperating = true;
+            // 批次新增所有球員
             notAddedPlayers.forEach(name => {
                 players.push(name);
                 playerMatchCount[name] = 0;
                 pairHistory[name] = {};
             });
             nextPlayersNeedUpdate = true;
-            setTimeout(() => {
-                isOperating = false;
-            }, 300);
+            // 先更新顯示和儲存
             updateDisplay();
             saveToFirebase();
-            autoStartIfReady();
             // 清空勾選狀態
             selectedFavorites = [];
+            // 延遲後自動開始比賽
+            setTimeout(() => {
+                isOperating = false;
+                autoStartIfReady();
+            }, 300);
             // 關閉常用名單面板
             closeMobileFavoritePanel();
             alert(`已新增 ${notAddedPlayers.length} 位球員`);
