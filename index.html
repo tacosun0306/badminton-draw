@@ -1131,6 +1131,11 @@
                 console.log('⏳ 操作進行中或同步中，請稍候...');
                 return;
             }
+            // 加上二次確認
+            const courtName = court === 'A' ? '球場 A' : '球場 B';
+            if (!confirm(`確定 ${courtName} 的比賽已結束嗎？`)) {
+                return;
+            }
             isOperating = true;
             if (court === 'A') {
                 courtAFinished = true;
@@ -1794,6 +1799,8 @@ function updatePairingStats() {
             players.push(name);
             playerMatchCount[name] = 0;
             pairHistory[name] = {};
+            // 強制重新計算 nextPlayers
+            nextPlayers = [];
             nextPlayersNeedUpdate = true;
             updateDisplay();
             saveToFirebase();
@@ -1826,6 +1833,8 @@ function updatePairingStats() {
                 playerMatchCount[name] = 0;
                 pairHistory[name] = {};
             });
+            // 強制重新計算 nextPlayers
+            nextPlayers = [];
             nextPlayersNeedUpdate = true;
             // 先更新顯示和儲存
             updateDisplay();
@@ -1899,6 +1908,8 @@ function updatePairingStats() {
                 playerMatchCount[name] = 0;
                 pairHistory[name] = {};
             });
+            // 強制重新計算 nextPlayers
+            nextPlayers = [];
             nextPlayersNeedUpdate = true;
             // 先更新顯示和儲存
             updateDisplay();
