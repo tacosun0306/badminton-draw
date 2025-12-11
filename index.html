@@ -1705,8 +1705,8 @@ function updatePairingStats() {
                 return;
             }
             
-            // 從 Firebase 讀取所有比賽紀錄
-            db.collection('matchRecords').orderBy('date', 'desc').orderBy('time', 'desc').get()
+            // 從 Firebase 讀取所有比賽紀錄（改用 timestamp 排序，避免需要建立索引）
+            db.collection('matchRecords').orderBy('timestamp', 'desc').get()
                 .then(snapshot => {
                     if (snapshot.empty) {
                         dateListDiv.innerHTML = '<div style="color:#dc3545;">尚無比賽紀錄</div>';
@@ -1721,6 +1721,15 @@ function updatePairingStats() {
                                 recordsByDate[data.date] = [];
                             }
                             recordsByDate[data.date].push(data);
+                        });
+                        
+                        // 每個日期內的紀錄按時間排序
+                        Object.keys(recordsByDate).forEach(date => {
+                            recordsByDate[date].sort((a, b) => {
+                                const timeA = a.time || '00:00';
+                                const timeB = b.time || '00:00';
+                                return timeB.localeCompare(timeA);
+                            });
                         });
                         
                         // 產生日期按鈕
@@ -1741,7 +1750,15 @@ function updatePairingStats() {
                 })
                 .catch(error => {
                     console.error('讀取比賽紀錄失敗:', error);
-                    dateListDiv.innerHTML = '<div style="color:#dc3545;">讀取失敗</div>';
+                    let errorMsg = '讀取失敗';
+                    if (error.code === 'failed-precondition') {
+                        errorMsg += '：需要建立 Firebase 索引。\n\n請點選錯誤訊息中的連結建立索引，或改用 timestamp 欄位排序。';
+                    } else if (error.code === 'permission-denied') {
+                        errorMsg += '：權限不足，請檢查 Firestore 規則設定。';
+                    } else {
+                        errorMsg += '：' + (error.message || '未知錯誤');
+                    }
+                    dateListDiv.innerHTML = `<div style="color:#dc3545;">${errorMsg}</div>`;
                     modal.style.display = 'block';
                 });
         }
