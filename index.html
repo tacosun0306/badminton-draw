@@ -1608,15 +1608,16 @@ function updatePairingStats() {
             refreshMobileFavoriteList();
         };
         
-        // 比賽紀錄儲存於 localStorage，格式：{ date: { players: [...], matchCount: {...} } }
+        // 比賽紀錄儲存於 Firebase
         function saveMatchRecord() {
             if (players.length === 0 && Object.keys(deletedPlayers).length === 0) {
                 alert('目前沒有球員，無法儲存比賽！');
                 return;
             }
-            const today = new Date();
-            const dateStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-            if (!confirm(`確定要儲存 ${dateStr} 的比賽紀錄嗎？`)) {
+            const now = new Date();
+            const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+            const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+            if (!confirm(`確定要儲存 ${dateStr} ${timeStr} 的比賽紀錄嗎？`)) {
                 return;
             }
             // 合併現有球員與已刪除球員
@@ -1628,15 +1629,29 @@ function updatePairingStats() {
             });
             const record = {
                 date: dateStr,
+                time: timeStr,
                 players: allNames,
                 matchCount: matchCountAll,
-                deleted: Object.keys(deletedPlayers)
+                deleted: Object.keys(deletedPlayers),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
-            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
-            allRecords[dateStr] = record;
-            localStorage.setItem('matchRecords', JSON.stringify(allRecords));
-            alert('比賽紀錄已保存！');
-            showMatchRecordModal(record);
+            
+            if (!isFirebaseEnabled) {
+                alert('Firebase 未啟用，無法儲存比賽紀錄');
+                return;
+            }
+            
+            // 儲存到 Firebase，使用自動生成的 ID
+            db.collection('matchRecords').add(record)
+                .then((docRef) => {
+                    alert('比賽紀錄已保存到雲端！');
+                    record.id = docRef.id;
+                    showMatchRecordModal(record);
+                })
+                .catch(error => {
+                    console.error('儲存比賽紀錄失敗:', error);
+                    alert('儲存失敗，請稍後再試');
+                });
         }
 
         function showMatchRecordModal(record) {
@@ -1645,7 +1660,7 @@ function updatePairingStats() {
             if (!record) {
                 tableDiv.innerHTML = '<div style="color:#dc3545;">查無紀錄</div>';
             } else {
-                let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 日期：${record.date}</div>`;
+                let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 ${record.date} ${record.time || ''}</div>`;
                 html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
                 html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
                 record.players.forEach((name, idx) => {
@@ -1668,49 +1683,107 @@ function updatePairingStats() {
             const modal = document.getElementById('matchCalendarModal');
             const dateListDiv = document.getElementById('calendarDateList');
             const tableDiv = document.getElementById('calendarRecordTable');
-            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
-            const dates = Object.keys(allRecords).sort((a,b) => b.localeCompare(a));
-            if (dates.length === 0) {
-                dateListDiv.innerHTML = '<div style="color:#dc3545;">尚無比賽紀錄</div>';
+            
+            if (!isFirebaseEnabled) {
+                dateListDiv.innerHTML = '<div style="color:#dc3545;">Firebase 未啟用</div>';
                 tableDiv.innerHTML = '';
-            } else {
-                dateListDiv.innerHTML = dates.map(date => `<button style="margin:4px 8px 4px 0;padding:8px 18px;border-radius:8px;border:none;background:#667eea;color:white;font-size:16px;cursor:pointer;" onclick="showCalendarRecord('${date}')">${date}</button>`).join('');
-                tableDiv.innerHTML = '';
-            }
-            modal.style.display = 'block';
-        }
-
-        function showCalendarRecord(date) {
-            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
-            const record = allRecords[date];
-            const tableDiv = document.getElementById('calendarRecordTable');
-            if (!record) {
-                tableDiv.innerHTML = '<div style="color:#dc3545;">查無紀錄</div>';
-            } else {
-                let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 日期：${record.date}</div>`;
-                html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
-                html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
-                record.players.forEach((name, idx) => {
-                    const isDel = record.deleted && record.deleted.includes(name);
-                    const bgColor = idx % 2 === 0 ? '#f9f9f9' : '#ffffff';
-                    html += `<tr style="background:${bgColor};border-bottom:1px solid #e0e0e0;${isDel ? 'opacity:0.6;' : ''}"><td style="padding:12px;${isDel ? 'text-decoration:line-through;color:#999;' : 'color:#333;'}">${name}${isDel ? ' <span style=\'color:#dc3545;font-size:12px;font-weight:bold;\'>(已刪除)</span>' : ''}</td><td style="padding:12px;text-align:center;font-weight:bold;color:#667eea;">${record.matchCount[name] || 0}</td></tr>`;
-                });
-                html += '</table>';
-                html += `<div style="margin-top:16px;display:flex;gap:10px;justify-content:center;"><button style="background:#dc3545;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="deleteMatchRecord('${date}')">🗑️ 刪除此紀錄</button><button style="background:#667eea;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="closeMatchCalendarModal()">✕ 關閉</button></div>`;
-                tableDiv.innerHTML = html;
-            }
-        }
-
-        function deleteMatchRecord(date) {
-            if (!confirm(`確定要刪除 ${date} 的比賽紀錄嗎？此操作無法恢復。`)) {
+                modal.style.display = 'block';
                 return;
             }
-            let allRecords = JSON.parse(localStorage.getItem('matchRecords') || '{}');
-            delete allRecords[date];
-            localStorage.setItem('matchRecords', JSON.stringify(allRecords));
-            alert(`${date} 的比賽紀錄已刪除。`);
-            // 重新刷新日曆列表
-            showMatchCalendar();
+            
+            // 從 Firebase 讀取所有比賽紀錄
+            db.collection('matchRecords').orderBy('date', 'desc').orderBy('time', 'desc').get()
+                .then(snapshot => {
+                    if (snapshot.empty) {
+                        dateListDiv.innerHTML = '<div style="color:#dc3545;">尚無比賽紀錄</div>';
+                        tableDiv.innerHTML = '';
+                    } else {
+                        // 按日期分組
+                        const recordsByDate = {};
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            data.id = doc.id;
+                            if (!recordsByDate[data.date]) {
+                                recordsByDate[data.date] = [];
+                            }
+                            recordsByDate[data.date].push(data);
+                        });
+                        
+                        // 產生日期按鈕
+                        const dates = Object.keys(recordsByDate).sort((a,b) => b.localeCompare(a));
+                        let html = '';
+                        dates.forEach(date => {
+                            html += `<div style="margin-bottom:8px;">`;
+                            html += `<div style="font-weight:bold;color:#667eea;margin:8px 0;font-size:16px;">${date} (${recordsByDate[date].length}筆)</div>`;
+                            recordsByDate[date].forEach((record, idx) => {
+                                html += `<button style="margin:4px 8px 4px 0;padding:8px 18px;border-radius:8px;border:none;background:#17a2b8;color:white;font-size:14px;cursor:pointer;" onclick="showCalendarRecord('${record.id}')">${record.time || `第${idx+1}筆`}</button>`;
+                            });
+                            html += `</div>`;
+                        });
+                        dateListDiv.innerHTML = html;
+                        tableDiv.innerHTML = '';
+                    }
+                    modal.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('讀取比賽紀錄失敗:', error);
+                    dateListDiv.innerHTML = '<div style="color:#dc3545;">讀取失敗</div>';
+                    modal.style.display = 'block';
+                });
+        }
+
+        function showCalendarRecord(recordId) {
+            if (!isFirebaseEnabled) {
+                alert('Firebase 未啟用');
+                return;
+            }
+            
+            const tableDiv = document.getElementById('calendarRecordTable');
+            db.collection('matchRecords').doc(recordId).get()
+                .then(doc => {
+                    if (!doc.exists) {
+                        tableDiv.innerHTML = '<div style="color:#dc3545;">查無紀錄</div>';
+                    } else {
+                        const record = doc.data();
+                        record.id = doc.id;
+                        let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 ${record.date} ${record.time || ''}</div>`;
+                        html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
+                        html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
+                        record.players.forEach((name, idx) => {
+                            const isDel = record.deleted && record.deleted.includes(name);
+                            const bgColor = idx % 2 === 0 ? '#f9f9f9' : '#ffffff';
+                            html += `<tr style="background:${bgColor};border-bottom:1px solid #e0e0e0;${isDel ? 'opacity:0.6;' : ''}"><td style="padding:12px;${isDel ? 'text-decoration:line-through;color:#999;' : 'color:#333;'}">${name}${isDel ? ' <span style=\'color:#dc3545;font-size:12px;font-weight:bold;\'>(已刪除)</span>' : ''}</td><td style="padding:12px;text-align:center;font-weight:bold;color:#667eea;">${record.matchCount[name] || 0}</td></tr>`;
+                        });
+                        html += '</table>';
+                        html += `<div style="margin-top:16px;display:flex;gap:10px;justify-content:center;"><button style="background:#dc3545;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="deleteMatchRecord('${record.id}')">🗑️ 刪除此紀錄</button><button style="background:#667eea;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:16px;cursor:pointer;font-weight:bold;" onclick="closeMatchCalendarModal()">✕ 關閉</button></div>`;
+                        tableDiv.innerHTML = html;
+                    }
+                })
+                .catch(error => {
+                    console.error('讀取比賽紀錄失敗:', error);
+                    tableDiv.innerHTML = '<div style="color:#dc3545;">讀取失敗</div>';
+                });
+        }
+
+        function deleteMatchRecord(recordId) {
+            if (!confirm(`確定要刪除此比賽紀錄嗎？此操作無法恢復。`)) {
+                return;
+            }
+            if (!isFirebaseEnabled) {
+                alert('Firebase 未啟用');
+                return;
+            }
+            
+            db.collection('matchRecords').doc(recordId).delete()
+                .then(() => {
+                    alert('比賽紀錄已刪除。');
+                    // 重新刷新日曆列表
+                    showMatchCalendar();
+                })
+                .catch(error => {
+                    console.error('刪除比賽紀錄失敗:', error);
+                    alert('刪除失敗，請稍後再試');
+                });
         }
 
         function closeMatchCalendarModal() {
