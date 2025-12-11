@@ -1650,7 +1650,21 @@ function updatePairingStats() {
                 })
                 .catch(error => {
                     console.error('儲存比賽紀錄失敗:', error);
-                    alert('儲存失敗，請稍後再試');
+                    let errorMsg = '儲存失敗：';
+                    if (error.code === 'permission-denied') {
+                        errorMsg += '\n\nFirebase 權限不足，請設定 Firestore 規則：\n\n';
+                        errorMsg += 'rules_version = \'2\';\n';
+                        errorMsg += 'service cloud.firestore {\n';
+                        errorMsg += '  match /databases/{database}/documents {\n';
+                        errorMsg += '    match /{document=**} {\n';
+                        errorMsg += '      allow read, write: if true;\n';
+                        errorMsg += '    }\n';
+                        errorMsg += '  }\n';
+                        errorMsg += '}';
+                    } else {
+                        errorMsg += error.message || '未知錯誤';
+                    }
+                    alert(errorMsg);
                 });
         }
 
