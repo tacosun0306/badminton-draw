@@ -708,6 +708,8 @@
             const onCourt = [...currentCourtA, ...currentCourtB];
             const waiting = players.filter(p => !onCourt.includes(p));
             
+            let result = [];
+            
             if (waiting.length <= 4 && waiting.length > 0) {
                 // 等候區≤4人：從等候區選（已打場次最少）+ 從剛結束比賽球場補足
                 // 先找出等候區已打場次最少的球員
@@ -741,20 +743,34 @@
                 const needCount = 4 - selectedFromWaiting.length;
                 let selectedFromFinished = [...finishedPool].sort(() => Math.random() - 0.5).slice(0, needCount);
                 
-                return [...selectedFromWaiting, ...selectedFromFinished];
+                result = [...selectedFromWaiting, ...selectedFromFinished];
             } else if (waiting.length === 0) {
                 return [];
             } else {
                 // 等候區>4人：優先選已打0場的球員
                 const zeroMatchPlayers = waiting.filter(p => playerMatchCount[p] === 0);
                 if (zeroMatchPlayers.length >= 4) {
-                    return zeroMatchPlayers.slice(0, 4);
+                    result = zeroMatchPlayers.slice(0, 4);
                 } else {
                     const pool = waiting.filter(p => !zeroMatchPlayers.includes(p));
                     const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                    return [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
+                    result = [...zeroMatchPlayers, ...shuffled.slice(0, 4 - zeroMatchPlayers.length)];
                 }
             }
+            
+            // 檢查是否違反特殊分組規則，如果違反則重新調整
+            let attempts = 0;
+            while (result.length === 4 && !checkForbiddenPairs(result) && attempts < 20) {
+                // 找出可用的球員池（不在場上的所有球員）
+                const available = players.filter(p => !onCourt.includes(p));
+                if (available.length < 4) break; // 可用球員不足，無法調整
+                
+                // 重新隨機選擇
+                result = [...available].sort(() => Math.random() - 0.5).slice(0, 4);
+                attempts++;
+            }
+            
+            return result;
         }
 
         // 新增球員
