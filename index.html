@@ -1633,6 +1633,7 @@ function updatePairingStats() {
                 players: allNames,
                 matchCount: matchCountAll,
                 deleted: Object.keys(deletedPlayers),
+                finishedMatches: finishedMatches,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             };
             
@@ -1675,6 +1676,7 @@ function updatePairingStats() {
                 tableDiv.innerHTML = '<div style="color:#dc3545;">查無紀錄</div>';
             } else {
                 let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 ${record.date} ${record.time || ''}</div>`;
+                html += `<div style="margin-bottom:12px;font-size:16px;color:#764ba2;">⚡ 已完成場次：<span style="font-weight:bold;">${record.finishedMatches || 0}</span></div>`;
                 html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
                 html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
                 record.players.forEach((name, idx) => {
@@ -1778,6 +1780,7 @@ function updatePairingStats() {
                         const record = doc.data();
                         record.id = doc.id;
                         let html = `<div style="margin-bottom:16px;font-size:18px;font-weight:bold;color:#667eea;">📅 ${record.date} ${record.time || ''}</div>`;
+                        html += `<div style="margin-bottom:12px;font-size:16px;color:#764ba2;">⚡ 已完成場次：<span style="font-weight:bold;">${record.finishedMatches || 0}</span></div>`;
                         html += '<table style="width:100%;border-collapse:collapse;font-size:16px;">';
                         html += '<tr style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;"><th style="padding:12px;text-align:left;">球員姓名</th><th style="padding:12px;text-align:center;">打幾場</th></tr>';
                         record.players.forEach((name, idx) => {
