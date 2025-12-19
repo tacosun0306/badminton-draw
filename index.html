@@ -687,7 +687,22 @@
         // 常用名單
         let favoriteList = []; // 常用球員名單
         let selectedFavorites = []; // 勾選的常用球員
+        
+        // 特殊分組規則：禁止配對的球員名單
+        const forbiddenPairs = [
+            ['玟綺', '孟翎']
+        ];
 
+        // 檢查是否違反特殊分組規則
+        function checkForbiddenPairs(courtPlayers) {
+            for (const [player1, player2] of forbiddenPairs) {
+                if (courtPlayers.includes(player1) && courtPlayers.includes(player2)) {
+                    return false; // 違反規則
+                }
+            }
+            return true; // 符合規則
+        }
+        
         // nextPlayers 產生邏輯統一
         function getNextPlayers() {
             const onCourt = [...currentCourtA, ...currentCourtB];
@@ -846,6 +861,16 @@
                     });
                     currentCourtB = waiting.slice(0, 4);
                 }
+                
+                // 檢查是否違反特殊分組規則
+                let attempts = 0;
+                while (!checkForbiddenPairs(currentCourtB) && attempts < 10) {
+                    // 重新排列等候區球員
+                    const shuffled = [...waiting].sort(() => Math.random() - 0.5);
+                    currentCourtB = shuffled.slice(0, 4);
+                    attempts++;
+                }
+                
                 currentCourtB.forEach(p => playerMatchCount[p]++);
                 courtBStarted = true;
                 courtBFinished = false;
@@ -935,12 +960,28 @@
                 // 還有8人以上，開兩場
                 currentCourtA = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
                 currentCourtB = players.slice(nextPlayerIndex + 4, nextPlayerIndex + 8);
+                
+                // 檢查是否違反特殊分組規則
+                if (!checkForbiddenPairs(currentCourtA) || !checkForbiddenPairs(currentCourtB)) {
+                    // 違反規則，改用亂數配對
+                    assignByRandom();
+                    return;
+                }
+                
                 courtAStarted = true;
                 courtBStarted = true;
                 nextPlayerIndex += 8;
             } else if (remaining >= 4) {
                 // 還有4-7人，開一場
                 currentCourtA = players.slice(nextPlayerIndex, nextPlayerIndex + 4);
+                
+                // 檢查是否違反特殊分組規則
+                if (!checkForbiddenPairs(currentCourtA)) {
+                    // 違反規則，改用亂數配對
+                    assignByRandom();
+                    return;
+                }
+                
                 courtAStarted = true;
                 nextPlayerIndex += 4;
             } else {
@@ -988,6 +1029,11 @@
                 const shuffled = [...available].sort(() => Math.random() - 0.5);
                 const courtA = shuffled.slice(0, 4);
                 const courtB = available.length >= 8 ? shuffled.slice(4, 8) : [];
+                
+                // 檢查是否違反特殊分組規則
+                if (!checkForbiddenPairs(courtA) || (courtB.length > 0 && !checkForbiddenPairs(courtB))) {
+                    continue; // 違反規則，跳過此組合
+                }
                 
                 const scoreA = getPairingScore(courtA);
                 const scoreB = courtB.length > 0 ? getPairingScore(courtB) : 0;
@@ -1165,6 +1211,17 @@
                 let finishedPool = [...currentCourtA].filter(p => !prepared.includes(p) && !currentCourtB.includes(p));
                 prepared = [...prepared, ...finishedPool];
             }
+            
+            // 檢查特殊分組規則，如果違反則重新調整
+            let attempts = 0;
+            while (!checkForbiddenPairs(prepared.slice(0, 4)) && attempts < 10) {
+                // 嘗試重新排列
+                const onCourt = [...currentCourtB];
+                const available = players.filter(p => !onCourt.includes(p));
+                prepared = [...available].sort(() => Math.random() - 0.5).slice(0, 4);
+                attempts++;
+            }
+            
             currentCourtA = prepared.slice(0, 4);
             recordPairing(currentCourtA);
             localStorage.removeItem('nextPlayers');
@@ -1186,6 +1243,17 @@
                 let finishedPool = [...currentCourtB].filter(p => !prepared.includes(p) && !currentCourtA.includes(p));
                 prepared = [...prepared, ...finishedPool];
             }
+            
+            // 檢查特殊分組規則，如果違反則重新調整
+            let attempts = 0;
+            while (!checkForbiddenPairs(prepared.slice(0, 4)) && attempts < 10) {
+                // 嘗試重新排列
+                const onCourt = [...currentCourtA];
+                const available = players.filter(p => !onCourt.includes(p));
+                prepared = [...available].sort(() => Math.random() - 0.5).slice(0, 4);
+                attempts++;
+            }
+            
             currentCourtB = prepared.slice(0, 4);
             recordPairing(currentCourtB);
             localStorage.removeItem('nextPlayers');
